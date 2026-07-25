@@ -174,6 +174,51 @@ npx firebase-tools deploy --only firestore:rules --project <프로젝트-id>
 
 ---
 
+## 4.2 실제 운영 환경
+
+이 프로젝트가 실제로 붙어 있는 곳. 값이 바뀌면 이 표부터 고친다.
+
+| 항목 | 값 |
+| --- | --- |
+| 배포 주소 | https://nacha4.github.io/work-hub/ |
+| GitHub 저장소 | `NaCha4/work-hub` (main 브랜치) |
+| Pages 배포 방식 | **GitHub Actions** (`build_type: workflow`) |
+| Firebase 프로젝트 | `work-hub-c0e3c` ([.firebaserc](.firebaserc) 에 고정) |
+| 허용 계정 | `name@example.com`, `name@example.com` |
+
+### Pages 배포 방식 주의
+
+Pages Source 를 `Deploy from a branch` 로 두면 저장소 루트의 `index.html` 이 그대로
+서빙된다. 그 파일은 `<script src="/src/main.tsx">` 를 가리키는 **개발용 진입점**이라
+브라우저에서 실행되지 않고, 화면이 새까맣게 뜬다(스타일도 안 붙어 브라우저 기본
+다크 배경만 보임). 실제로 한 번 겪은 문제다.
+
+**Source 는 반드시 `GitHub Actions` 여야 한다.** 확인·복구 명령:
+
+```bash
+gh api repos/NaCha4/work-hub/pages --jq .build_type
+```
+
+```bash
+gh api -X PUT repos/NaCha4/work-hub/pages -f build_type=workflow
+```
+
+### 사람만 할 수 있는 설정
+
+아래 두 가지는 CLI 로 처리할 수 없다. 에이전트가 대신 해주겠다고 하지 말고 안내한다.
+
+- **GitHub Secrets** (`VITE_FIREBASE_*` 6개) — 없으면 배포본이 "설정이 필요합니다" 화면이 된다
+- **Firebase 승인된 도메인** — Authentication > Settings 에 `nacha4.github.io` 가 없으면
+  배포본에서 Google 로그인 팝업이 `auth/unauthorized-domain` 으로 차단된다
+
+### 규칙 배포
+
+규칙 파일을 고쳤으면 배포해야 반영된다. `.firebaserc` 가 있으므로 `--project` 는 필요 없다.
+
+```bash
+npx firebase-tools deploy --only firestore:rules
+```
+
 ## 5. 명령어
 
 ```bash

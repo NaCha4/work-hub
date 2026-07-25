@@ -57,18 +57,24 @@ npm run dev
 2. **빌드 > Authentication > 시작하기 > Google** 로그인 제공업체 사용 설정
 3. **빌드 > Firestore Database > 데이터베이스 만들기** (프로덕션 모드, 리전은 `asia-northeast3`)
 4. **프로젝트 설정 > 내 앱 > 웹앱 추가** 후 `firebaseConfig` 값을 `.env` 에 복사
-5. `firebase/firestore.rules` 의 도메인을 수정하고 규칙 배포:
+5. `firebase/firestore.rules` 의 `isAllowedIdentity()` 를 본인 계정으로 수정하고 배포
+   (`.firebaserc` 에 프로젝트가 고정되어 있어 `--project` 는 생략 가능):
 
 ```bash
-npx firebase-tools deploy --only firestore:rules --project <your-project-id>
+npx firebase-tools deploy --only firestore:rules
 ```
 
 6. **Authentication > Settings > 승인된 도메인** 에 `localhost` 와
-   `<사용자명>.github.io` 를 추가 (없으면 로그인 팝업이 차단된다)
+   `<사용자명>.github.io` 를 추가한다. 이걸 빠뜨리면 배포본에서 로그인 팝업이
+   `auth/unauthorized-domain` 으로 차단된다. CLI 로는 설정할 수 없고 콘솔에서만 가능하다.
 7. 첫 로그인 후, 콘솔의 `members/{내 uid}` 문서에서 `role` 을 `owner` 로 바꾸면
    다른 멤버의 글도 삭제할 수 있다
 
 ## 3. GitHub Pages 배포
+
+> **Source 를 `Deploy from a branch` 로 두면 새까만 화면이 뜬다.**
+> 저장소 루트의 `index.html` 은 `/src/main.tsx` 를 가리키는 개발용 진입점이라
+> 브라우저가 실행하지 못한다. 반드시 `GitHub Actions` 로 둘 것.
 
 1. GitHub 에 리포지터리를 만들고 push
 2. **Settings > Pages > Source** 를 `GitHub Actions` 로 변경
