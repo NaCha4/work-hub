@@ -221,6 +221,32 @@ a { color: var(--accent); }
   padding: 12px;
 }
 
+.code-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+.entry-foot { margin-top: 20px; }
+
+/* 버튼이지만 본문 링크처럼 조용히 보여야 하는 것 */
+.text-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.text-link:hover { color: var(--fg); }
+
+.entry-hint { font-size: 11px; color: var(--muted); margin: 12px 0 0; }
+
 .code-display {
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   font-size: 28px;

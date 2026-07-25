@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import CodeEntry from '../components/CodeEntry'
+import { useAuth } from '../lib/auth'
 import { firebaseConfigured } from '../lib/firebase'
 import { buildPrepHtml, downloadHtml } from '../lib/exportHtml'
-import {
-  fetchSession,
-  formatCode,
-  isValidCodeShape,
-  normalizeCode,
-  type FetchResult,
-} from '../lib/session'
+import { fetchSession, type FetchResult } from '../lib/session'
 import type { Session } from '../lib/types'
 
 const MESSAGES: Record<Exclude<FetchResult, { ok: true }>['reason'], string> = {
@@ -25,7 +21,7 @@ const MESSAGES: Record<Exclude<FetchResult, { ok: true }>['reason'], string> = {
 export default function SessionView() {
   const { code: codeParam } = useParams()
   const nav = useNavigate()
-  const [input, setInput] = useState('')
+  const { status, signIn } = useAuth()
   const [session, setSession] = useState<Session | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -56,15 +52,6 @@ export default function SessionView() {
     () => (session ? buildPrepHtml(session.snapshot) : ''),
     [session],
   )
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!isValidCodeShape(input)) {
-      setError('8자리 코드를 정확히 입력해 주세요.')
-      return
-    }
-    nav(`/s/${formatCode(input)}`)
-  }
 
   if (!firebaseConfigured) {
     return (
@@ -109,39 +96,23 @@ export default function SessionView() {
     )
   }
 
-  // 코드 입력 화면
+  if (loading) {
+    return <div className="login-wrap"><p className="muted">불러오는 중…</p></div>
+  }
+
+  // 로그인 상태면 굳이 로그인 링크를 보여줄 이유가 없다.
+  // 로그아웃 상태에서는 첫 화면과 똑같이 두어, 코드를 잘못 넣었을 때
+  // 로그인으로 돌아갈 길이 사라지지 않게 한다.
   return (
-    <div className="login-wrap">
-      <form className="card login-card" onSubmit={submit}>
-        <div style={{ fontSize: 40, marginBottom: 8 }}>🔑</div>
-        <h1>세션 코드 입력</h1>
-        <p>발표자에게 받은 8자리 코드를 입력하면 자료를 볼 수 있습니다.</p>
-        {error && <div className="error-banner">{error}</div>}
-        <input
-          className="input code-input"
-          autoFocus
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="ABCD-EFGH"
-          maxLength={9}
-          value={input}
-          onChange={(e) => {
-            const raw = normalizeCode(e.target.value).slice(0, 8)
-            setInput(raw.length > 4 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw)
-            setError(null)
-          }}
-        />
-        <button
-          className="btn primary"
-          style={{ width: '100%', justifyContent: 'center', marginTop: 12 }}
-          disabled={loading}
-        >
-          {loading ? '확인 중…' : '자료 보기'}
-        </button>
-        <p style={{ marginTop: 18, marginBottom: 0, fontSize: 12 }}>
-          코드가 없으신가요? 발표자에게 문의해 주세요.
-        </p>
-      </form>
-    </div>
+    <CodeEntry
+      externalError={error}
+      footer={
+        status === 'ready' ? undefined : (
+          <button type="button" className="text-link" onClick={signIn}>
+            로그인
+          </button>
+        )
+      }
+    />
   )
 }

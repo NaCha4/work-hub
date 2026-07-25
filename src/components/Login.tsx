@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import CodeEntry from './CodeEntry'
 import { useAuth } from '../lib/auth'
 
 export default function Login() {
@@ -29,55 +29,32 @@ export default function Login() {
     )
   }
 
-  // 허용되지 않은 계정이라면 발표 자료를 보러 온 방문자일 가능성이 높다.
-  // 막다른 화면을 보여주는 대신 세션 코드 입력으로 안내한다.
+  // 허용되지 않은 계정. 세션 코드는 여전히 쓸 수 있으므로 입력창을 그대로 둔다.
   if (status === 'no-access') {
     return (
-      <div className="login-wrap">
-        <div className="card login-card">
-          <div style={{ fontSize: 40, marginBottom: 8 }}>🔑</div>
-          <h1>발표 자료를 보러 오셨나요?</h1>
-          <p>
-            이 계정으로는 Work Hub 에 들어올 수 없습니다.
-            받으신 세션 코드를 입력하면 공유된 자료를 볼 수 있습니다.
-          </p>
-          <Link
-            className="btn primary"
-            style={{ width: '100%', justifyContent: 'center', textDecoration: 'none' }}
-            to="/s"
-          >
-            세션 코드 입력
-          </Link>
-          <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={signOut}>
-            다른 계정으로 로그인
-          </button>
-          {/* 방문자에게는 의미 없는 줄이지만, 본인이 막혔을 때 원인을 짚으려면 필요하다. */}
-          {error && (
-            <p className="muted" style={{ fontSize: 11, marginTop: 14, marginBottom: 0 }}>
-              {error}
-            </p>
-          )}
-        </div>
-      </div>
+      <CodeEntry
+        footer={
+          <>
+            <button type="button" className="text-link" onClick={signOut}>
+              다른 계정으로 로그인
+            </button>
+            {/* 방문자에게는 의미 없지만, 본인이 막혔을 때 원인을 짚으려면 필요하다. */}
+            {error && <p className="entry-hint">{error}</p>}
+          </>
+        }
+      />
     )
   }
 
+  // 기본 화면. 이 앱을 여는 사람 대부분은 자료를 보러 온 팀원이다.
   return (
-    <div className="login-wrap">
-      <div className="card login-card">
-        <div style={{ fontSize: 40, marginBottom: 8 }}>🗂️</div>
-        <h1>Work Hub</h1>
-        <p>업무 일지 · 할 일 · 회의록 · 준비자료를 한곳에서.</p>
-        {error && <div className="error-banner">{error}</div>}
-        <button className="btn primary" style={{ width: '100%', justifyContent: 'center' }} onClick={signIn}>
-          Google 계정으로 로그인
+    <CodeEntry
+      externalError={error}
+      footer={
+        <button type="button" className="text-link" onClick={signIn}>
+          로그인
         </button>
-        <p style={{ marginTop: 18, marginBottom: 0, fontSize: 12 }}>
-          허용된 계정만 접근할 수 있습니다.
-          <br />
-          발표 자료를 보러 오셨다면 <Link to="/s">세션 코드 입력</Link>
-        </p>
-      </div>
-    </div>
+      }
+    />
   )
 }
