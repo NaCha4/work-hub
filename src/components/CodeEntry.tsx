@@ -19,13 +19,27 @@ export default function CodeEntry({ externalError, footer }: Props) {
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  /**
+   * 8자리가 채워지는 순간 바로 넘어간다. 코드를 넣는 것 말고 할 일이 없는 화면이라
+   * 확인 버튼을 한 번 더 누르게 할 이유가 없다.
+   */
+  function change(value: string) {
+    const raw = normalizeCode(value).slice(0, 8)
+    setInput(raw.length > 4 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw)
+    if (isValidCodeShape(raw)) {
+      setError(null)
+      nav(`/s/${formatCode(raw)}`)
+    } else {
+      // 8자리를 다 채웠는데도 통과하지 못했다면 코드에 없는 글자가 섞인 것이다.
+      setError(raw.length === 8 ? '코드에 쓰이지 않는 글자가 있습니다.' : null)
+    }
+  }
+
+  // 버튼은 없지만 입력칸 하나짜리 폼이라 Enter 로도 제출된다. 덜 채운 채 눌렀을 때의 안내용.
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isValidCodeShape(input)) {
-      setError('8자리 코드를 정확히 입력해 주세요.')
-      return
-    }
-    nav(`/s/${formatCode(input)}`)
+    if (isValidCodeShape(input)) nav(`/s/${formatCode(input)}`)
+    else setError('8자리 코드를 정확히 입력해 주세요.')
   }
 
   const shown = error ?? externalError
@@ -43,19 +57,13 @@ export default function CodeEntry({ externalError, footer }: Props) {
           placeholder="ABCD-EFGH"
           maxLength={9}
           value={input}
-          onChange={(e) => {
-            const raw = normalizeCode(e.target.value).slice(0, 8)
-            setInput(raw.length > 4 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw)
-            setError(null)
-          }}
+          onChange={(e) => change(e.target.value)}
         />
-        {shown && <div className="error-banner" style={{ marginTop: 12 }}>{shown}</div>}
-        <button
-          className="btn primary"
-          style={{ width: '100%', justifyContent: 'center', marginTop: 12 }}
-        >
-          자료 보기
-        </button>
+        {shown ? (
+          <div className="error-banner" style={{ marginTop: 12 }}>{shown}</div>
+        ) : (
+          <p className="entry-hint">8자리를 모두 입력하면 자동으로 열립니다.</p>
+        )}
         {footer && <div className="entry-foot">{footer}</div>}
       </form>
     </div>
