@@ -4,15 +4,26 @@ import { useAuth } from '../lib/auth'
 export default function Login() {
   const { status, error, signIn, signOut } = useAuth()
 
+  // 빌드에 Firebase 설정이 들어가지 않은 상태. 로컬과 배포본의 원인이 서로 다르므로
+  // 둘 다 안내한다 — 배포본에서 이 화면이 보이면 십중팔구 GitHub Secrets 누락이다.
   if (status === 'unconfigured') {
+    const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
     return (
       <div className="login-wrap">
         <div className="card login-card">
           <h1>설정이 필요합니다</h1>
-          <p>
-            <code>.env.example</code> 을 <code>.env</code> 로 복사한 뒤 Firebase 웹 앱 설정값을
-            채워 주세요. 자세한 절차는 <code>README.md</code> 의 “Firebase 준비” 항목에 있습니다.
-          </p>
+          {local ? (
+            <p>
+              <code>.env.example</code> 을 <code>.env</code> 로 복사한 뒤 Firebase 웹 앱
+              설정값을 채워 주세요. 절차는 <code>README.md</code> 의 “Firebase 준비” 항목에 있습니다.
+            </p>
+          ) : (
+            <p>
+              배포 빌드에 Firebase 설정값이 들어 있지 않습니다. 저장소의
+              <b> Settings → Secrets and variables → Actions </b> 에
+              <code>VITE_FIREBASE_*</code> 6개를 등록한 뒤 다시 배포해 주세요.
+            </p>
+          )}
         </div>
       </div>
     )
