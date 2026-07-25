@@ -21,4 +21,9 @@ const app = initializeApp(
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const googleProvider = new GoogleAuthProvider()
-googleProvider.setCustomParameters({ prompt: 'select_account' })
+
+// prompt: 'select_account' 를 붙이지 않는다. 그걸 주면 이미 크롬에 로그인된
+// 계정이 있어도 매번 계정 선택 화면이 뜬다. 빼두면 브라우저에 로그인된 계정이
+// 하나일 때 곧바로 통과하고, 여러 개일 때만 구글이 선택 화면을 띄운다.
+// 로그인 상태 자체는 Firebase 가 기본값(browserLocalPersistence)으로
+// IndexedDB 에 저장하므로 브라우저를 껐다 켜도 유지된다.
