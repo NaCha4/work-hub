@@ -4,46 +4,35 @@ import CodeEntry from '../components/CodeEntry'
 import { useAuth } from '../lib/auth'
 import { firebaseConfigured } from '../lib/firebase'
 import { buildPrepHtml, downloadHtml } from '../lib/exportHtml'
-import { fetchSession, type FetchResult } from '../lib/session'
+import { fetchSession } from '../lib/session'
 import type { Session } from '../lib/types'
-
-const MESSAGES: Record<Exclude<FetchResult, { ok: true }>['reason'], string> = {
-  'not-found': '코드가 올바르지 않거나 더 이상 열람할 수 없는 세션입니다.',
-  expired: '이 세션은 만료되었습니다. 발표자에게 새 코드를 요청해 주세요.',
-  inactive: '이 세션은 현재 닫혀 있습니다. 발표자에게 문의해 주세요.',
-  error: '자료를 불러오지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.',
-}
 
 /**
  * 비로그인 방문자용 화면. 코드를 입력하면 발표자가 지정한 준비자료를 보여준다.
  * 앱의 나머지 부분과 달리 인증을 요구하지 않으므로 Layout 을 쓰지 않는다.
+ *
+ * 열지 못한 코드에 대해서는 아무 말도 하지 않고 입력 화면으로 되돌린다.
+ * 없는 코드인지 만료됐는지 닫혔는지를 구분해 알려주면 세션의 존재 여부가 새어 나간다.
  */
 export default function SessionView() {
   const { code: codeParam } = useParams()
   const nav = useNavigate()
   const { status, signIn } = useAuth()
   const [session, setSession] = useState<Session | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
     if (!codeParam) {
       setSession(null)
-      setError(null)
       return
     }
     let cancelled = false
     setLoading(true)
-    setError(null)
     void fetchSession(codeParam).then((r) => {
       if (cancelled) return
       setLoading(false)
-      if (r.ok) setSession(r.session)
-      else {
-        setSession(null)
-        setError(MESSAGES[r.reason])
-      }
+      setSession(r.ok ? r.session : null)
     })
     return () => { cancelled = true }
   }, [codeParam])
@@ -105,7 +94,6 @@ export default function SessionView() {
   // 로그인으로 돌아갈 길이 사라지지 않게 한다.
   return (
     <CodeEntry
-      externalError={error}
       footer={
         status === 'ready' ? undefined : (
           <button type="button" className="text-link" onClick={signIn}>
