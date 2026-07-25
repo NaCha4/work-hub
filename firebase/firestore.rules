@@ -2,7 +2,10 @@ rules_version = '2';
 
 // Work Hub 접근 통제
 //  - 로그인하지 않은 사람은 아무것도 읽거나 쓸 수 없다. 단 하나의 예외가 발표 세션이다.
-//  - isAllowedIdentity() 에 적힌 계정만 members 문서를 만들 수 있다 (= 최초 가입).
+//  - 허용 목록에 있는 계정만 members 문서를 만들 수 있다 (= 최초 가입).
+//    목록은 이 파일이 아니라 Firestore 의 config/access 문서에 있다.
+//    저장소가 공개라서 계정 정보를 코드에 남기지 않으려는 것이고,
+//    계정을 추가·삭제할 때 규칙을 다시 배포하지 않아도 되는 이점도 있다.
 //  - members 문서가 있는 사람만 일지/할일/회의록/준비자료에 접근할 수 있다.
 //  - 발표 세션(sessions)은 코드를 아는 사람이면 로그인 없이 문서 "하나" 만 읽을 수 있다.
 //    코드가 곧 문서 ID 이고 목록 조회(list)는 멤버만 가능하므로, 코드를 모르면
@@ -14,10 +17,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // 허용 목록. config/access 문서가 없으면 아무도 가입하지 못한다(= 안전한 기본값).
+    // 규칙 안의 get() 은 클라이언트 읽기 권한을 우회하므로, 아직 멤버가 아닌 사람이
+    // 그 문서를 읽지 못해도 이 검사는 정상 동작한다.
+    function allowedEmails() {
+      return exists(/databases/$(database)/documents/config/access)
+        ? get(/databases/$(database)/documents/config/access).data.emails
+        : [];
+    }
+
     function isAllowedIdentity() {
       return isSignedIn()
         && request.auth.token.email_verified == true
-        && request.auth.token.email in ['name@example.com', 'name@example.com'];
+        && request.auth.token.email in allowedEmails();
     }
 
     function isMember() {
@@ -86,6 +98,13 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if isMember()
         && (resource.data.createdBy == request.auth.uid || isOwner());
+    }
+
+    // 허용 계정 목록. 멤버만 읽고 고칠 수 있다.
+    // 비멤버에게는 존재조차 보이지 않지만, 위 allowedEmails() 의 get() 은
+    // 규칙 실행 컨텍스트라 이 제한과 무관하게 값을 읽는다.
+    match /config/{doc} {
+      allow read, write: if isMember();
     }
 
     // 위에서 명시하지 않은 모든 경로는 차단.

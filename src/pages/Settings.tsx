@@ -1,3 +1,4 @@
+import AccessList from '../components/AccessList'
 import { useAuth } from '../lib/auth'
 import { useCollection } from '../lib/db'
 import type { Journal, Meeting, Member, Prep, Task } from '../lib/types'
@@ -35,11 +36,12 @@ export default function Settings() {
         </p>
       </div>
 
+      <AccessList />
+
       <div className="card">
         <div className="card-head"><h3>멤버 ({members.length})</h3></div>
         <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
-          허용 도메인 계정이 처음 로그인하면 자동으로 등록됩니다. 개별 차단은 Firebase 콘솔에서
-          해당 <code>members</code> 문서를 삭제하고 Authentication 에서 사용자를 비활성화하세요.
+          허용된 계정이 처음 로그인하면 자동으로 등록됩니다.
         </p>
         {members.map((m) => (
           <div key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border)' }}>

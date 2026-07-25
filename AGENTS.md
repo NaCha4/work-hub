@@ -136,9 +136,13 @@ firebase/
 **접근 통제는 오직 [firebase/firestore.rules](firebase/firestore.rules) 에서만 이뤄진다.**
 
 ```
-Google 로그인 → 규칙이 허용 도메인 확인 → members/{uid} 생성 → 데이터 접근 허용
-                              아니면 거부 → "접근 권한이 없습니다"
+Google 로그인 → 규칙이 config/access 목록 대조 → members/{uid} 생성 → 데이터 접근 허용
+                                 아니면 거부 → 세션 코드 입력 화면
 ```
+
+**이 저장소는 공개다.** 계정 주소, 개인 정보, 실제 업무 내용을 파일에 적지 않는다.
+허용 계정 목록을 규칙 파일이 아니라 Firestore 에 둔 것도 그래서다.
+문서에 예시가 필요하면 `name@example.com` 같은 가짜 값을 쓴다.
 
 에이전트가 지켜야 할 것:
 
@@ -150,11 +154,15 @@ Google 로그인 → 규칙이 허용 도메인 확인 → members/{uid} 생성 
   런타임에 숨기려 들지 않는다. 대신 규칙을 조인다.
 - 실제 비밀값(서비스 계정 키, Admin SDK 자격증명)은 이 저장소에 절대 두지 않는다.
 - `.env` 는 `.gitignore` 에 있다. 커밋 스테이징 전에 `git status` 로 확인한다.
-- 규칙을 고쳤으면 배포해야 반영된다. 사용자에게 아래 명령을 안내한다.
+- 규칙을 고쳤으면 배포해야 반영된다. `.firebaserc` 가 있어 `--project` 는 필요 없다.
 
 ```bash
-npx firebase-tools deploy --only firestore:rules --project <프로젝트-id>
+npx firebase-tools deploy --only firestore:rules
 ```
+
+- **허용 계정은 규칙 파일에 적지 않는다.** `config/access` 문서의 `emails` 배열에 있고,
+  앱 설정 화면에서 관리한다. 규칙 안의 `get()` 은 클라이언트 읽기 권한을 우회하므로
+  비멤버가 그 문서를 못 읽어도 검사는 동작한다. 문서가 없으면 아무도 가입하지 못한다.
 
 사용자 입력은 전부 마크다운으로 렌더링된다. **`renderMarkdown()` 을 거치지 않은 문자열을
 `dangerouslySetInnerHTML` 에 넣지 않는다.** 그 함수 안에서 DOMPurify sanitize 가 일어난다.
@@ -192,7 +200,7 @@ npx firebase-tools deploy --only firestore:rules --project <프로젝트-id>
 | GitHub 저장소 | `NaCha4/work-hub` (main 브랜치) |
 | Pages 배포 방식 | **GitHub Actions** (`build_type: workflow`) |
 | Firebase 프로젝트 | `work-hub-c0e3c` ([.firebaserc](.firebaserc) 에 고정) |
-| 허용 계정 | `name@example.com`, `name@example.com` |
+| 허용 계정 | Firestore `config/access` 문서에서 관리 (앱의 설정 화면) |
 
 ### Pages 배포 방식 주의
 
