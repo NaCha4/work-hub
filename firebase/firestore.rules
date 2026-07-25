@@ -43,7 +43,12 @@ service cloud.firestore {
     }
 
     match /members/{uid} {
-      allow read: if isMember();
+      // 본인 문서는 멤버가 아니어도 읽을 수 있어야 한다.
+      // 클라이언트가 "내 멤버 문서가 있나?" 를 먼저 확인한 뒤 없으면 만드는데,
+      // 이걸 isMember() 로 막으면 멤버가 되려면 이미 멤버여야 하는 교착이 된다.
+      // 없는 문서를 읽으면 빈 결과가 올 뿐이라 새어 나가는 정보는 없다.
+      allow get: if isSignedIn() && (request.auth.uid == uid || isMember());
+      allow list: if isMember();
       // 본인 문서만, 허용된 신원으로만, role 은 member 로 고정해 생성.
       allow create: if isAllowedIdentity()
         && request.auth.uid == uid

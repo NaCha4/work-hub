@@ -51,6 +51,12 @@ export default function Login() {
           <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={signOut}>
             다른 계정으로 로그인
           </button>
+          {/* 방문자에게는 의미 없는 줄이지만, 본인이 막혔을 때 원인을 짚으려면 필요하다. */}
+          {error && (
+            <p className="muted" style={{ fontSize: 11, marginTop: 14, marginBottom: 0 }}>
+              {error}
+            </p>
+          )}
         </div>
       </div>
     )
