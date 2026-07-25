@@ -6,3 +6,7 @@ dist
 *.log
 .DS_Store
 .vite
+
+# 일회성 이력 정리 스크립트
+scrub-emails.sh
+cleanup-after-scrub.sh
