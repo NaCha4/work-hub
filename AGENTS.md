@@ -276,16 +276,22 @@ npm run build
 
 ### 6.1 설치된 스킬
 
-`.claude/skills/` 에 44개가 있다. 세션 시작 시 자동으로 목록에 오른다.
+`.claude/skills/` 에 37개가 있다. 세션 시작 시 자동으로 목록에 오른다.
 
 | 출처 | 개수 | 성격 |
 | --- | --- | --- |
 | [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) | 6 | 과설계를 줄이는 코딩 모드. `/ponytail-help` |
 | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 2 | `minimalist-ui`, `redesign-existing-projects` |
-| [obra/superpowers](https://github.com/obra/superpowers) | 14 | 개발 방법론(브레인스토밍, 계획, TDD, 디버깅, 코드리뷰) |
-| [mattpocock/skills](https://github.com/mattpocock/skills) | 22 | 엔지니어링·생산성 워크플로 |
+| [obra/superpowers](https://github.com/obra/superpowers) | 8 | 개발 방법론(브레인스토밍, 계획, TDD, 디버깅, 검증) |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | 21 | 엔지니어링·생산성 워크플로 |
 
-전부 MIT 라이선스다.
+전부 MIT 라이선스다. 상시 로드되는 건 프론트매터(이름·설명)뿐으로 합계 약 2,300 토큰이고,
+본문은 실제로 호출할 때만 읽힌다. 개수보다 **설명이 겹쳐 엉뚱한 걸 고르는 것**이 실질적 비용이다.
+
+1인 프로젝트라 쓸 일이 없는 것들은 뺐다 — 리뷰어와 주고받는 워크플로
+(`requesting-code-review`, `receiving-code-review`), 멀티 에이전트
+(`dispatching-parallel-agents`, `subagent-driven-development`), `using-git-worktrees`,
+스킬 저작용(`writing-skills`, `writing-great-skills`).
 
 **이 프로젝트에 맞게 조정한 것들** — 스킬이 서로, 또는 이 문서와 부딪히는 지점이다.
 
@@ -310,8 +316,19 @@ npm run build
 - 각 스킬의 `agents/openai.yaml` — 다른 런타임용
 
 일부 스킬에는 실행 스크립트가 딸려 있다(`brainstorming/scripts/`,
-`systematic-debugging/find-polluter.sh`, `diagnosing-bugs/scripts/`,
-`writing-skills/render-graphs.js`). 스킬이 시키더라도 실행 전에 내용을 읽는다.
+`systematic-debugging/find-polluter.sh`, `diagnosing-bugs/scripts/`).
+스킬이 시키더라도 실행 전에 내용을 읽는다.
+
+**설치 방식** — 플러그인이 아니라 `.claude/skills/` 에 디렉터리째 복사했다. 그래서
+저장소에 함께 커밋되고 git 으로 버전이 남지만, 자동 업데이트는 안 된다. 갱신하려면
+원본 저장소에서 다시 복사한다. 참조 문서까지 같이 복사했고, 스킬들이 형제 파일을
+상대경로로만 가리키므로(`](writing-good-tests.md)`) 이 방식에서 정상 동작한다.
+
+**훅은 일부러 설치하지 않았다.** 세 저장소의 훅은 전부 `${CLAUDE_PLUGIN_ROOT}` 를
+전제로 하는데 여기는 플러그인 설치가 아니라 경로가 맞지 않는다. 기능상으로도
+superpowers 훅은 `using-superpowers` 전문을 매 세션에 강제 주입하고, ponytail 훅은
+`UserPromptSubmit` 마다 node 프로세스를 띄운다. 스킬을 필요할 때만 부르는 지금 방식이
+이 프로젝트에는 맞다. ponytail 을 항상 켜고 싶으면 훅 대신 CLAUDE.md 에 한 줄 적는다.
 
 ## 7. 하지 말 것 요약
 
