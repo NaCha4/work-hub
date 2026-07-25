@@ -1,14 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
+import Icon, { type IconName } from './Icon'
 import { useAuth } from '../lib/auth'
 
-const NAV = [
-  { to: '/', label: '대시보드', ico: '🏠' },
-  { to: '/journal', label: '업무 일지', ico: '📓' },
-  { to: '/tasks', label: '할 일', ico: '✅' },
-  { to: '/meetings', label: '회의록', ico: '🗣️' },
-  { to: '/preps', label: '준비자료', ico: '📊' },
-  { to: '/settings', label: '설정', ico: '⚙️' },
+const NAV: { to: string; label: string; ico: IconName }[] = [
+  { to: '/', label: '대시보드', ico: 'dashboard' },
+  { to: '/journal', label: '업무 일지', ico: 'journal' },
+  { to: '/tasks', label: '할 일', ico: 'tasks' },
+  { to: '/meetings', label: '회의록', ico: 'meetings' },
+  { to: '/preps', label: '준비자료', ico: 'preps' },
+  { to: '/settings', label: '설정', ico: 'settings' },
 ]
 
 function useTheme() {
@@ -29,10 +30,13 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="app">
       <nav className="sidebar">
-        <div className="brand">🗂️ Work Hub</div>
+        <div className="brand">
+          <Icon name="brand" size={18} />
+          Work Hub
+        </div>
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'} className="nav-link">
-            <span className="ico">{n.ico}</span>
+            <span className="ico"><Icon name={n.ico} size={17} /></span>
             {n.label}
           </NavLink>
         ))}
@@ -49,8 +53,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <button className="btn ghost sm" onClick={toggle} title="테마 전환">
-              {theme === 'light' ? '🌙' : '☀️'}
+            <button
+              className="btn ghost sm"
+              onClick={toggle}
+              title="테마 전환"
+              aria-label={theme === 'light' ? '어두운 테마로' : '밝은 테마로'}
+            >
+              <Icon name={theme === 'light' ? 'moon' : 'sun'} size={15} />
             </button>
             <button className="btn ghost sm" onClick={signOut}>로그아웃</button>
           </div>

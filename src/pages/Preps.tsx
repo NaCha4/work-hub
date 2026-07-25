@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import Icon from '../components/Icon'
 import SessionManager from '../components/SessionManager'
 import { useAuth } from '../lib/auth'
 import { byUpdated, createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
@@ -81,7 +82,7 @@ export default function Preps() {
           <button className="btn ghost" onClick={() => setEditing(null)}>← 목록</button>
           <h1 style={{ fontSize: 17 }}>{editing.title || '새 준비자료'}</h1>
           <span className="spacer" />
-          {saved && <span className="muted" style={{ fontSize: 12 }}>저장됨 ✓</span>}
+          {saved && <span className="muted" style={{ fontSize: 12 }}>저장됨</span>}
           <select
             className="select"
             style={{ width: 120 }}
@@ -99,7 +100,8 @@ export default function Preps() {
             className="btn sm"
             onClick={() => (editing.id ? setShowShare(true) : alert('먼저 저장해 주세요.'))}
           >
-            🔑 세션 공유
+            <Icon name="key" size={14} />
+            세션 공유
           </button>
           <button className="btn primary" onClick={save}>저장</button>
         </div>
@@ -154,7 +156,7 @@ export default function Preps() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>📊 회의 준비자료</h1>
+        <h1>회의 준비자료</h1>
         <span className="spacer" />
         <button className="btn primary" onClick={() => setEditing(blank(member!.uid, member!.displayName))}>
           + 준비자료
@@ -188,7 +190,10 @@ export default function Preps() {
               <button className="btn sm" onClick={() => setEditing(p)}>편집</button>
               <button className="btn sm" onClick={() => openPreview(p)}>미리보기</button>
               <button className="btn sm" onClick={() => downloadHtml(p)}>HTML</button>
-              <button className="btn sm" onClick={() => setSharing(p)}>🔑 세션</button>
+              <button className="btn sm" onClick={() => setSharing(p)}>
+                <Icon name="key" size={13} />
+                세션
+              </button>
               <span style={{ flex: 1 }} />
               <button className="btn ghost sm danger" onClick={() => remove(p)}>삭제</button>
             </div>

@@ -26,7 +26,7 @@ export default function Settings() {
 
   return (
     <div className="page">
-      <div className="page-head"><h1>⚙️ 설정</h1></div>
+      <div className="page-head"><h1>설정</h1></div>
 
       <div className="card">
         <div className="card-head"><h3>내 계정</h3></div>

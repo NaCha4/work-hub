@@ -79,7 +79,11 @@ a { color: var(--accent); }
 }
 .nav-link:hover { background: var(--surface-2); color: var(--fg); }
 .nav-link.active { background: var(--accent-soft); color: var(--accent); }
-.nav-link .ico { width: 18px; text-align: center; }
+.nav-link .ico { display: grid; place-items: center; width: 18px; flex: 0 0 18px; }
+
+/* 버튼·라벨 안의 아이콘은 글자와 광학적으로 맞물려야 한다. */
+.btn svg, .due svg { flex: 0 0 auto; }
+.due { display: inline-flex; align-items: center; gap: 4px; }
 
 .sidebar-foot { margin-top: auto; border-top: 1px solid var(--border); padding-top: 12px; }
 .me { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }

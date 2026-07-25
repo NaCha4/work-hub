@@ -53,7 +53,7 @@ export default function Journal() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>📓 업무 일지</h1>
+        <h1>업무 일지</h1>
         <span className="spacer" />
         <input
           className="input"

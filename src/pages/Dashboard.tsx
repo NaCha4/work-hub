@@ -54,7 +54,7 @@ export default function Dashboard() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>안녕하세요, {member?.displayName?.split(' ')[0] ?? ''}님 👋</h1>
+        <h1>안녕하세요, {member?.displayName?.split(' ')[0] ?? ''}님</h1>
         <span className="spacer" />
         <button className="btn sm" onClick={copyWeekly}>주간 보고 초안 복사</button>
       </div>
@@ -91,7 +91,7 @@ export default function Dashboard() {
 
         <div className="card">
           <div className="card-head"><h3>급한 할 일</h3></div>
-          {open.length === 0 && <p className="muted">할 일이 없습니다. 🎉</p>}
+          {open.length === 0 && <p className="muted">남은 할 일이 없습니다.</p>}
           {[...open]
             .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
             .slice(0, 6)

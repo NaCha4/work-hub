@@ -120,7 +120,7 @@ export default function Meetings() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>🗣️ 회의록</h1>
+        <h1>회의록</h1>
         <span className="spacer" />
         <input
           className="input"

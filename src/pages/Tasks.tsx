@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import Icon from '../components/Icon'
 import Modal from '../components/Modal'
 import MarkdownField from '../components/MarkdownField'
 import { useAuth } from '../lib/auth'
@@ -74,7 +75,7 @@ export default function Tasks() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>✅ 할 일</h1>
+        <h1>할 일</h1>
         <span className="spacer" />
         <select className="select" style={{ width: 150 }} value={project} onChange={(e) => setProject(e.target.value)}>
           <option value="">전체 프로젝트</option>
@@ -125,8 +126,11 @@ export default function Tasks() {
                   <div className="m">
                     <span className={`prio-${t.priority}`}>{TASK_PRIORITY_LABEL[t.priority]}</span>
                     {t.due && (
-                      <span className={t.due < today() && t.status !== 'done' ? 'overdue' : ''}>
-                        📅 {t.due.slice(5)}
+                      <span
+                        className={`due${t.due < today() && t.status !== 'done' ? ' overdue' : ''}`}
+                      >
+                        <Icon name="calendar" size={12} />
+                        {t.due.slice(5)}
                       </span>
                     )}
                     {t.project && <span>· {t.project}</span>}

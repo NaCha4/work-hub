@@ -111,10 +111,10 @@ export default function SessionManager({
           <div className="code-display">{formatCode(issued)}</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
             <button className="btn sm" onClick={() => copy(formatCode(issued), 'code')}>
-              {copied === 'code' ? '복사됨 ✓' : '코드 복사'}
+              {copied === 'code' ? '복사됨' : '코드 복사'}
             </button>
             <button className="btn sm" onClick={() => copy(sessionUrl(issued), 'link')}>
-              {copied === 'link' ? '복사됨 ✓' : '링크 복사'}
+              {copied === 'link' ? '복사됨' : '링크 복사'}
             </button>
             <a className="btn sm" href={`#/s/${formatCode(issued)}`} target="_blank" rel="noreferrer">
               열어보기
@@ -170,7 +170,7 @@ export default function SessionManager({
                   </div>
                 </div>
                 <button className="btn ghost sm" onClick={() => copy(sessionUrl(s.id), s.id)}>
-                  {copied === s.id ? '✓' : '링크'}
+                  {copied === s.id ? '복사됨' : '링크'}
                 </button>
                 <button className="btn ghost sm" onClick={() => refresh(s)}>갱신</button>
                 <button
