@@ -276,19 +276,42 @@ npm run build
 
 ### 6.1 설치된 스킬
 
-`.claude/skills/` 에 있다. 세션 시작 시 자동으로 목록에 오른다.
+`.claude/skills/` 에 44개가 있다. 세션 시작 시 자동으로 목록에 오른다.
 
-| 스킬 | 쓰는 때 |
-| --- | --- |
-| `ponytail` 외 5종 | 과설계를 줄이는 코딩 모드. `/ponytail-help` 로 사용법 |
-| `minimalist-ui` | 이 앱의 디자인 언어. 따뜻한 모노크롬, 1px 테두리, 뮤트된 파스텔 |
-| `redesign-existing-projects` | 기존 화면을 감사하고 고칠 때 |
+| 출처 | 개수 | 성격 |
+| --- | --- | --- |
+| [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) | 6 | 과설계를 줄이는 코딩 모드. `/ponytail-help` |
+| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 2 | `minimalist-ui`, `redesign-existing-projects` |
+| [obra/superpowers](https://github.com/obra/superpowers) | 14 | 개발 방법론(브레인스토밍, 계획, TDD, 디버깅, 코드리뷰) |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | 22 | 엔지니어링·생산성 워크플로 |
 
-`minimalist-ui` 는 랜딩 페이지를 전제로 쓰인 부분이 있다(히어로 섹션, `py-24` 급 여백,
-스크롤 진입 애니메이션, 앰비언트 그라디언트). 이 앱은 밀도 높은 업무 도구이므로
-그 항목들은 따르지 않는다. 색·타이포·테두리·간격 원칙만 가져온다.
+전부 MIT 라이선스다.
 
-`taste-skill` 계열(GSAP·Tailwind·Motion 전제)은 의도적으로 설치하지 않았다.
+**이 프로젝트에 맞게 조정한 것들** — 스킬이 서로, 또는 이 문서와 부딪히는 지점이다.
+
+- `minimalist-ui` 는 랜딩 페이지를 전제로 쓰인 부분이 있다(히어로 섹션, `py-24` 급 여백,
+  스크롤 진입 애니메이션, 앰비언트 그라디언트). 이 앱은 밀도 높은 업무 도구이므로
+  그 항목들은 따르지 않는다. 색·타이포·테두리·간격 원칙만 가져온다.
+- `test-driven-development`(superpowers)와 `tdd`(mattpocock)는 모든 변경에 테스트를
+  먼저 쓰라고 한다. 이 저장소에는 테스트 러너가 없다(5장). 러너를 들이기 전까지는
+  이 둘을 자동으로 따르지 않는다. 쓰려면 Vitest 도입이 먼저다.
+- `ponytail` 은 "테스트도 YAGNI" 쪽, TDD 스킬들은 "항상 먼저" 쪽이다. 정면으로 부딪힌다.
+  둘 다 켜지 말고, 작업 성격에 따라 하나만 고른다.
+- `using-superpowers` 는 어떤 응답보다 먼저 스킬을 호출하라고 강하게 요구한다.
+  이 프로젝트 규모에 과할 수 있다. 거슬리면 그 디렉터리만 지우면 나머지 13개는 남는다.
+
+**의도적으로 설치하지 않은 것**
+
+- `taste-skill` 계열 — GSAP·Tailwind·Motion 전제. 순수 CSS 에 의존성 6개 유지와 충돌
+- `git-guardrails-claude-code`(mattpocock) — `git push` 를 훅으로 차단한다. 1.1 의 push
+  허용 정책을 정면으로 되돌린다
+- mattpocock 의 `deprecated/`, `in-progress/`, `personal/`(옵시디언·글쓰기),
+  `migrate-to-shoehorn`, `scaffold-exercises` — 이 프로젝트와 무관
+- 각 스킬의 `agents/openai.yaml` — 다른 런타임용
+
+일부 스킬에는 실행 스크립트가 딸려 있다(`brainstorming/scripts/`,
+`systematic-debugging/find-polluter.sh`, `diagnosing-bugs/scripts/`,
+`writing-skills/render-graphs.js`). 스킬이 시키더라도 실행 전에 내용을 읽는다.
 
 ## 7. 하지 말 것 요약
 
