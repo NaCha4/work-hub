@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
 import MarkdownField from '../components/MarkdownField'
@@ -62,7 +61,6 @@ export default function Dashboard() {
   const inProject = tasks.filter((x) => !project || x.project === project)
   const open = inProject.filter((x) => x.status !== 'done')
   const upcoming = meetings.filter((m) => m.date >= t).sort((a, b) => a.date.localeCompare(b.date))
-  const wroteToday = journals.some((j) => j.date === t && j.authorUid === member?.uid)
 
   // 상태로 나누지 않고 한 줄로 세운다. 순서는 order 가 정하고 드래그로 바꾼다.
   const ordered = [...open].sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
@@ -189,12 +187,6 @@ export default function Dashboard() {
       <p className="page-sub">{t}</p>
 
       {error && <div className="error-banner">{error}</div>}
-
-      {!wroteToday && (
-        <div className="card" style={{ borderColor: 'var(--accent)', marginBottom: 12 }}>
-          오늘 업무 일지를 아직 안 썼습니다. <Link to="/journal">지금 작성하기 →</Link>
-        </div>
-      )}
 
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-head">
