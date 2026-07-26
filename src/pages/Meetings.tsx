@@ -88,8 +88,8 @@ export default function Meetings() {
         }),
       ),
     )
-    if (confirm(`${fresh.length}건을 할 일로 등록했습니다. 할 일 화면으로 이동할까요?`)) {
-      nav('/tasks')
+    if (confirm(`${fresh.length}건을 할 일로 등록했습니다. 대시보드로 이동할까요?`)) {
+      nav('/')
     }
   }
 

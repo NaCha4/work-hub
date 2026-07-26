@@ -184,21 +184,8 @@ a { color: var(--accent); }
 }
 :root[data-theme='dark'] .error-banner { background: #3b1a17; color: #fca5a5; border-color: #7f2b25; }
 
-/* ---------- kanban ---------- */
-.board { display: grid; grid-template-columns: repeat(5, minmax(190px, 1fr)); gap: 12px; overflow-x: auto; }
-.board-col { background: var(--surface-2); border-radius: var(--radius); padding: 10px; min-height: 200px; }
-.board-col.drop { outline: 2px dashed var(--accent); outline-offset: -2px; }
-.board-col h4 { margin: 2px 4px 10px; font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; }
-.task-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
-  padding: 10px; margin-bottom: 8px; cursor: grab; box-shadow: var(--shadow);
-}
-.task-card:active { cursor: grabbing; }
-.task-card .t { font-weight: 500; margin-bottom: 6px; word-break: keep-all; }
-.task-card .m { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--muted); flex-wrap: wrap; }
-.overdue { color: var(--danger); font-weight: 600; }
-
 /* ---------- 대시보드 할 일 목록 ---------- */
+.overdue { color: var(--danger); font-weight: 600; }
 .task-row {
   display: flex; align-items: center; gap: 8px; font-size: 13.5px;
   padding: 7px 2px; border-top: 1px solid var(--border);
@@ -206,6 +193,7 @@ a { color: var(--accent); }
 .task-row input[type='checkbox'] { flex: 0 0 auto; accent-color: var(--accent); margin: 0; }
 .task-row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row .sub { flex: 0 0 auto; font-size: 12px; }
+.task-row:hover { background: var(--surface-2); }
 .task-row.movable { cursor: grab; }
 .task-row.movable:active { cursor: grabbing; }
 .task-row.dragging { opacity: 0.4; }

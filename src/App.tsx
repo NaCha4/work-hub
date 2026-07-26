@@ -4,7 +4,6 @@ import Layout from './components/Layout'
 import Login from './components/Login'
 import Dashboard from './pages/Dashboard'
 import Journal from './pages/Journal'
-import Tasks from './pages/Tasks'
 import Meetings from './pages/Meetings'
 import Preps from './pages/Preps'
 import Settings from './pages/Settings'
@@ -34,7 +33,6 @@ function PrivateApp() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/journal" element={<Journal />} />
-        <Route path="/tasks" element={<Tasks />} />
         <Route path="/meetings" element={<Meetings />} />
         <Route path="/preps" element={<Preps />} />
         <Route path="/settings" element={<Settings />} />
