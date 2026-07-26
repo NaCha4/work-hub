@@ -7,19 +7,16 @@ import type { Session } from './types'
  * 발표 자리에서 코드를 불러줘야 할 수도 있어서다.
  */
 const ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ'
-const CODE_LEN = 8
+export const CODE_LEN = 4
 
-/** 30^8 ≈ 6.5e11 가지. 무작위 대입으로 맞히기는 현실적으로 어렵다. */
+/**
+ * 30^4 = 810,000 가지. 불러주기 쉬운 길이를 택한 대신 무작위 대입 여지는 남는다.
+ * 세션을 오래 열어두지 말고 발표가 끝나면 닫는 것으로 상쇄한다.
+ */
 export function generateCode(): string {
   const bytes = new Uint32Array(CODE_LEN)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join('')
-}
-
-/** 화면 표시용: ABCD-EFGH */
-export function formatCode(code: string): string {
-  const c = normalizeCode(code)
-  return c.length === CODE_LEN ? `${c.slice(0, 4)}-${c.slice(4)}` : c
 }
 
 /** 사용자가 하이픈이나 공백을 섞어 입력해도 받아들인다. */
@@ -33,7 +30,7 @@ export function isValidCodeShape(input: string): boolean {
 }
 
 export function sessionUrl(code: string): string {
-  return `${location.origin}${location.pathname}#/s/${formatCode(code)}`
+  return `${location.origin}${location.pathname}#/s/${normalizeCode(code)}`
 }
 
 export type FetchResult =

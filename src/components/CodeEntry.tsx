@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { formatCode, isValidCodeShape, normalizeCode } from '../lib/session'
+import { CODE_LEN, isValidCodeShape, normalizeCode } from '../lib/session'
 
 interface Props {
   /** 로그인 과정에서 생긴 오류. 세션 코드에 대한 오류는 여기로 들어오지 않는다 */
@@ -19,7 +19,7 @@ export default function CodeEntry({ externalError, footer }: Props) {
   const [input, setInput] = useState('')
 
   /**
-   * 8자리가 채워지는 순간 바로 넘어간다. 코드를 넣는 것 말고 할 일이 없는 화면이라
+   * 코드가 다 채워지는 순간 바로 넘어간다. 코드를 넣는 것 말고 할 일이 없는 화면이라
    * 확인 버튼을 한 번 더 누르게 할 이유가 없다.
    *
    * 형식이 어긋나도 아무 말을 하지 않는다. 맞았는지 틀렸는지, 왜 안 되는지를
@@ -27,9 +27,9 @@ export default function CodeEntry({ externalError, footer }: Props) {
    * 어떤 반응이든 세션에 대한 단서가 된다.
    */
   function change(value: string) {
-    const raw = normalizeCode(value).slice(0, 8)
-    setInput(raw.length > 4 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw)
-    if (isValidCodeShape(raw)) nav(`/s/${formatCode(raw)}`)
+    const raw = normalizeCode(value).slice(0, CODE_LEN)
+    setInput(raw)
+    if (isValidCodeShape(raw)) nav(`/s/${raw}`)
   }
 
   return (
@@ -43,8 +43,7 @@ export default function CodeEntry({ externalError, footer }: Props) {
           autoFocus
           autoComplete="off"
           spellCheck={false}
-          placeholder="ABCD-EFGH"
-          maxLength={9}
+          maxLength={CODE_LEN}
           value={input}
           onChange={(e) => change(e.target.value)}
         />

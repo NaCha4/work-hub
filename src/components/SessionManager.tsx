@@ -5,7 +5,6 @@ import { deleteDocById, updateDocById, useCollection } from '../lib/db'
 import {
   EXPIRY_OPTIONS,
   createSession,
-  formatCode,
   generateCode,
   sessionUrl,
 } from '../lib/session'
@@ -92,7 +91,7 @@ export default function SessionManager({
   }
 
   async function remove(s: Session) {
-    if (!confirm(`코드 ${formatCode(s.id)} 를 삭제할까요? 링크가 즉시 막힙니다.`)) return
+    if (!confirm(`코드 ${s.id} 를 삭제할까요? 링크가 즉시 막힙니다.`)) return
     await deleteDocById('sessions', s.id)
   }
 
@@ -108,15 +107,15 @@ export default function SessionManager({
       {issued && (
         <div className="card" style={{ borderColor: 'var(--accent)', marginBottom: 16 }}>
           <div className="muted" style={{ fontSize: 12 }}>새 세션 코드</div>
-          <div className="code-display">{formatCode(issued)}</div>
+          <div className="code-display">{issued}</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-            <button className="btn sm" onClick={() => copy(formatCode(issued), 'code')}>
+            <button className="btn sm" onClick={() => copy(issued, 'code')}>
               {copied === 'code' ? '복사됨' : '코드 복사'}
             </button>
             <button className="btn sm" onClick={() => copy(sessionUrl(issued), 'link')}>
               {copied === 'link' ? '복사됨' : '링크 복사'}
             </button>
-            <a className="btn sm" href={`#/s/${formatCode(issued)}`} target="_blank" rel="noreferrer">
+            <a className="btn sm" href={`#/s/${issued}`} target="_blank" rel="noreferrer">
               열어보기
             </a>
           </div>
@@ -159,7 +158,7 @@ export default function SessionManager({
             const expired = s.expiresAt < Date.now()
             return (
               <div key={s.id} className="session-row">
-                <code className="session-code">{formatCode(s.id)}</code>
+                <code className="session-code">{s.id}</code>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12.5 }}>{s.note || '—'}</div>
                   <div className="muted" style={{ fontSize: 11.5 }}>
