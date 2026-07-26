@@ -4,6 +4,7 @@ import Icon from '../components/Icon'
 import MarkdownField from '../components/MarkdownField'
 import Modal from '../components/Modal'
 import { useAuth } from '../lib/auth'
+import { useCalendarEvents } from '../lib/calendar'
 import { createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
 import { parseTags, today } from '../lib/markdown'
 import {
@@ -48,6 +49,7 @@ export default function Dashboard() {
   const { items: tasks, error } = useCollection<Task>('tasks', enabled)
   const { items: journals } = useCollection<Journal>('journals', enabled)
   const { items: meetings } = useCollection<Meeting>('meetings', enabled)
+  const cal = useCalendarEvents()
   const [draft, setDraft] = useState<Task | null>(null)
   const [project, setProject] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
@@ -60,7 +62,16 @@ export default function Dashboard() {
   )
   const inProject = tasks.filter((x) => !project || x.project === project)
   const open = inProject.filter((x) => x.status !== 'done')
-  const upcoming = meetings.filter((m) => m.date >= t).sort((a, b) => a.date.localeCompare(b.date))
+  // 회의록의 예정 회의와 구글 캘린더 일정을 한 줄기로 세운다. 캘린더 쪽은
+  // 저장하지 않고 화면에서만 합치므로, 연동이 꺼져 있으면 회의록만 남는다.
+  const agenda = [
+    ...meetings
+      .filter((m) => m.date >= t)
+      .map((m) => ({ key: m.id, date: m.date, time: m.time, title: m.title, link: '' })),
+    ...cal.events.map((e) => ({ key: `g-${e.id}`, date: e.date, time: e.time, title: e.title, link: e.link })),
+  ]
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+    .slice(0, 8)
 
   // 상태로 나누지 않고 한 줄로 세운다. 순서는 order 가 정하고 드래그로 바꾼다.
   const ordered = [...open].sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
@@ -222,14 +233,26 @@ export default function Dashboard() {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-head"><h3>다가오는 회의</h3></div>
-        {upcoming.length === 0 && <p className="muted">예정된 회의가 없습니다.</p>}
-        {upcoming.slice(0, 6).map((m) => (
-          <div key={m.id} style={{ display: 'flex', gap: 8, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-            <span className="muted" style={{ fontSize: 12.5, width: 92, flex: '0 0 92px' }}>
-              {m.date.slice(5)} {m.time}
-            </span>
-            <span>{m.title}</span>
+        <div className="card-head">
+          <h3>다가오는 회의</h3>
+          <span className="spacer" />
+          {cal.state === 'loading' && <span className="muted" style={{ fontSize: 12 }}>캘린더 확인 중…</span>}
+          {cal.state === 'error' && (
+            <button className="btn ghost sm" onClick={cal.connect} title={cal.error}>
+              구글 캘린더 연동
+            </button>
+          )}
+        </div>
+        {agenda.length === 0 && <p className="muted">예정된 회의가 없습니다.</p>}
+        {agenda.map((it) => (
+          <div key={it.key} className="agenda-row">
+            <span className="muted when">{it.date.slice(5)} {it.time || '종일'}</span>
+            {it.link ? (
+              <a className="text-link" href={it.link} target="_blank" rel="noreferrer">{it.title}</a>
+            ) : (
+              <span>{it.title}</span>
+            )}
+            {it.link && <Icon name="calendar" size={12} />}
           </div>
         ))}
       </div>

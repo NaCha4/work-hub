@@ -1,0 +1,194 @@
+import { useCallback, useEffect, useState } from 'react'
+
+/**
+ * 구글 캘린더 읽기 전용 연동.
+ *
+ * Firestore 를 거치지 않는다. 일정은 화면에 띄우기만 하고 저장하지 않으므로
+ * 보안 규칙에 새 match 블록이 필요 없다. 쓰기 권한도 요청하지 않아서
+ * 이 앱이 사용자의 캘린더를 바꿀 수 있는 경로 자체가 없다.
+ *
+ * 토큰은 이 모듈의 메모리에만 둔다. localStorage 나 Firestore 에 넣지 않는다 —
+ * 저장소가 공개고, 규칙으로 감쌀 수 있는 값도 아니다. 탭을 새로 열면 다시 받는다.
+ */
+
+const SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
+const CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
+
+/** 클라이언트 ID 가 없으면 연동 자체를 없는 기능으로 취급한다. */
+export const calendarConfigured = Boolean(CLIENT_ID)
+
+export interface CalendarEvent {
+  id: string
+  title: string
+  /** YYYY-MM-DD */
+  date: string
+  /** HH:mm. 종일 일정이면 빈 문자열 */
+  time: string
+  link: string
+}
+
+interface TokenResponse {
+  access_token?: string
+  expires_in?: number
+  error?: string
+}
+
+interface TokenClient {
+  requestAccessToken: (options?: { prompt?: string }) => void
+}
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        oauth2: {
+          initTokenClient: (config: {
+            client_id: string
+            scope: string
+            callback: (response: TokenResponse) => void
+            error_callback?: (error: { type?: string }) => void
+          }) => TokenClient
+        }
+      }
+    }
+  }
+}
+
+let token = ''
+let expiresAt = 0
+let client: TokenClient | null = null
+let pending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null
+let scriptLoad: Promise<void> | null = null
+
+/** Google Identity Services 스크립트. npm 패키지가 없어 태그로 넣는다. */
+function loadScript() {
+  scriptLoad ??= new Promise<void>((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://accounts.google.com/gsi/client'
+    s.async = true
+    s.onload = () => resolve()
+    s.onerror = () => {
+      scriptLoad = null
+      reject(new Error('구글 인증 스크립트를 불러오지 못했습니다.'))
+    }
+    document.head.appendChild(s)
+  })
+  return scriptLoad
+}
+
+function settle(result: { token: string } | { error: string }) {
+  const p = pending
+  pending = null
+  if (!p) return
+  if ('token' in result) p.resolve(result.token)
+  else p.reject(new Error(result.error))
+}
+
+/**
+ * interactive=false 면 이미 동의한 계정에 한해 팝업 없이 새 토큰을 받는다.
+ * 동의 이력이 없으면 구글이 팝업을 띄우려다 브라우저에 막히고, 그때는
+ * 사용자가 연동 버튼을 눌러 interactive=true 로 다시 오게 된다.
+ */
+async function getToken(interactive: boolean): Promise<string> {
+  if (token && Date.now() < expiresAt) return token
+  await loadScript()
+  const oauth2 = window.google?.accounts.oauth2
+  if (!oauth2) throw new Error('구글 인증 스크립트를 불러오지 못했습니다.')
+
+  client ??= oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPE,
+    callback: (res) => {
+      if (!res.access_token) return settle({ error: res.error ?? '토큰을 받지 못했습니다.' })
+      token = res.access_token
+      // 만료 1분 전부터는 새로 받는다. 요청 도중 만료되는 것을 피한다.
+      expiresAt = Date.now() + (res.expires_in ?? 3600) * 1000 - 60_000
+      settle({ token })
+    },
+    error_callback: (err) => settle({ error: err.type ?? '인증 창이 열리지 않았습니다.' }),
+  })
+
+  return new Promise<string>((resolve, reject) => {
+    pending = { resolve, reject }
+    client!.requestAccessToken({ prompt: interactive ? 'consent' : '' })
+  })
+}
+
+function toEvent(item: {
+  id?: string
+  summary?: string
+  htmlLink?: string
+  start?: { date?: string; dateTime?: string }
+}): CalendarEvent | null {
+  const start = item.start
+  if (!start) return null
+  if (start.date) {
+    return { id: item.id ?? '', title: item.summary ?? '(제목 없음)', date: start.date, time: '', link: item.htmlLink ?? '' }
+  }
+  if (!start.dateTime) return null
+  const d = new Date(start.dateTime)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return {
+    id: item.id ?? '',
+    title: item.summary ?? '(제목 없음)',
+    date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+    time: `${p(d.getHours())}:${p(d.getMinutes())}`,
+    link: item.htmlLink ?? '',
+  }
+}
+
+async function fetchUpcoming(interactive: boolean, max: number): Promise<CalendarEvent[]> {
+  const t = await getToken(interactive)
+  const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events')
+  url.searchParams.set('timeMin', new Date().toISOString())
+  url.searchParams.set('maxResults', String(max))
+  // 반복 일정을 회차별로 펼쳐야 다음 한 건만 골라낼 수 있다.
+  url.searchParams.set('singleEvents', 'true')
+  url.searchParams.set('orderBy', 'startTime')
+
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${t}` } })
+  if (!res.ok) {
+    // 권한이 끊겼으면 캐시한 토큰을 버려 다음 시도에서 새로 받게 한다.
+    if (res.status === 401 || res.status === 403) {
+      token = ''
+      expiresAt = 0
+    }
+    throw new Error(`캘린더를 불러오지 못했습니다. (${res.status})`)
+  }
+  const data = (await res.json()) as { items?: Parameters<typeof toEvent>[0][] }
+  return (data.items ?? []).map(toEvent).filter((e): e is CalendarEvent => e !== null)
+}
+
+export type CalendarState = 'off' | 'loading' | 'ready' | 'error'
+
+export function useCalendarEvents(max = 10) {
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [state, setState] = useState<CalendarState>(calendarConfigured ? 'loading' : 'off')
+  const [error, setError] = useState('')
+
+  const load = useCallback(
+    async (interactive: boolean) => {
+      if (!calendarConfigured) return
+      setState('loading')
+      try {
+        setEvents(await fetchUpcoming(interactive, max))
+        setError('')
+        setState('ready')
+      } catch (e) {
+        setError((e as Error).message)
+        setState('error')
+      }
+    },
+    [max],
+  )
+
+  useEffect(() => {
+    void load(false)
+    // 탭을 오래 열어두면 목록이 굳는다. 돌아올 때 조용히 다시 받는다.
+    const onFocus = () => void load(false)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [load])
+
+  return { events, state, error, connect: () => void load(true) }
+}

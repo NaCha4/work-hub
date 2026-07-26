@@ -140,8 +140,10 @@ src/
     markdown.ts     marked + DOMPurify, 날짜·태그 유틸
     exportHtml.ts   준비자료를 단일 HTML 문서로 만드는 생성기
     session.ts      세션 코드 생성·정규화·조회. 4.1 장을 읽고 손댈 것
-  components/       Layout(사이드바) / Login / Modal / MarkdownField / SessionManager
-  pages/            Dashboard / Journal / Tasks / Meetings / Preps / Settings
+    calendar.ts     구글 캘린더 읽기 전용 연동. 4.3 장을 읽고 손댈 것
+  components/       Layout(사이드바) / Login / Modal / MarkdownField / DateInput
+                    SessionManager
+  pages/            Dashboard / Journal / Meetings / Preps / Settings
                     SessionView — 인증 게이트 바깥에 있는 유일한 화면
 firebase/
   firestore.rules   접근 통제의 실체. 아래 4장 참고
@@ -259,6 +261,13 @@ gh api -X PUT repos/NaCha4/work-hub/pages -f build_type=workflow
 - **GitHub Secrets** (`VITE_FIREBASE_*` 6개) — 없으면 배포본이 "설정이 필요합니다" 화면이 된다
 - **Firebase 승인된 도메인** — Authentication > Settings 에 `nacha4.github.io` 가 없으면
   배포본에서 Google 로그인 팝업이 `auth/unauthorized-domain` 으로 차단된다
+- **구글 캘린더 연동(선택)** — Google Cloud Console 에서 세 가지를 맞춰야 켜진다.
+  하나라도 없으면 연동만 꺼진 채 나머지는 정상 동작한다.
+  - OAuth 동의 화면에 `.../auth/calendar.readonly` 스코프 추가. 본인만 쓰므로 게시 상태를
+    `테스트` 로 두고 본인 계정을 테스트 사용자에 넣으면 구글 검수를 받지 않아도 된다
+  - 웹 클라이언트의 **승인된 자바스크립트 원본**에 `https://nacha4.github.io` 와
+    `http://localhost:5173` 추가
+  - 그 클라이언트 ID 를 `VITE_GOOGLE_CLIENT_ID` 로 `.env` 와 GitHub Secrets 양쪽에 등록
 
 ### 규칙 배포
 
@@ -267,6 +276,27 @@ gh api -X PUT repos/NaCha4/work-hub/pages -f build_type=workflow
 ```bash
 npx firebase-tools deploy --only firestore:rules
 ```
+
+## 4.3 구글 캘린더 — 밖으로 나가는 유일한 요청
+
+[src/lib/calendar.ts](src/lib/calendar.ts) 하나에 갇혀 있다. 손대기 전에 아래를 안다.
+
+- **읽기 전용이다.** 스코프는 `calendar.readonly` 하나뿐이라 이 앱이 사용자의 캘린더를
+  바꿀 수 있는 경로가 없다. 쓰기 스코프를 추가하자는 제안은 사용자에게 먼저 묻는다.
+- **일정을 저장하지 않는다.** 대시보드에서 회의록과 화면상으로만 합치고 끝이다.
+  Firestore 에 넣지 않으므로 규칙에 새 `match` 블록이 필요 없다. 캐시하겠다고
+  컬렉션을 만들면 4장의 접근 통제 범위가 늘어난다 — 그럴 이유가 없다.
+- **액세스 토큰은 모듈 메모리에만 둔다.** `localStorage`·`sessionStorage`·Firestore
+  어디에도 쓰지 않는다. 탭을 새로 열면 조용히 다시 받으면 되는 값이다.
+- Firebase 는 구글 OAuth 액세스 토큰을 로그인 결과에서 한 번 건네줄 뿐 갱신해 주지
+  않는다. 그래서 Firebase 로그인에 스코프를 붙이는 대신 Google Identity Services 를
+  따로 쓴다. 정적 호스팅이라 리프레시 토큰을 받을 서버가 없다는 점이 전제다.
+- GIS 는 npm 패키지가 없어 `<script>` 태그로 넣는다. 6장의 런타임 의존성 6개 규칙은
+  npm 기준이므로 이걸로 깨지지 않는다.
+- `VITE_GOOGLE_CLIENT_ID` 가 비면 `calendarConfigured=false` 가 되어 연동만 조용히
+  꺼진다. 나머지 기능은 그대로 돈다. 값이 없다고 화면이 깨지게 만들지 않는다.
+
+---
 
 ## 5. 명령어
 
