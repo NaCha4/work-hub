@@ -309,19 +309,34 @@ npm run build
 
 ### 6.1 설치된 스킬
 
-`.claude/skills/` 에 37개가 있다. 세션 시작 시 자동으로 목록에 오른다.
+`.claude/skills/` 에 20개가 있다. 세션 시작 시 자동으로 목록에 오른다.
 
 | 출처 | 개수 | 성격 |
 | --- | --- | --- |
-| [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) | 6 | 과설계를 줄이는 코딩 모드. `/ponytail-help` |
-| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 2 | `minimalist-ui`, `redesign-existing-projects` |
-| [obra/superpowers](https://github.com/obra/superpowers) | 8 | 개발 방법론(브레인스토밍, 계획, TDD, 디버깅, 검증) |
-| [mattpocock/skills](https://github.com/mattpocock/skills) | 21 | 엔지니어링·생산성 워크플로 |
+| [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) | 4 | 과설계를 줄이는 코딩 모드 |
+| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 1 | `minimalist-ui` |
+| [obra/superpowers](https://github.com/obra/superpowers) | 6 | 개발 방법론(브레인스토밍, 계획, TDD, 디버깅, 검증) |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | 9 | 엔지니어링·생산성 워크플로 |
 
-전부 MIT 라이선스다. 상시 로드되는 건 프론트매터(이름·설명)뿐으로 합계 약 2,300 토큰이고,
+전부 MIT 라이선스다. 상시 로드되는 건 프론트매터(이름·설명)뿐으로 합계 1,300 토큰 안팎이고,
 본문은 실제로 호출할 때만 읽힌다. 개수보다 **설명이 겹쳐 엉뚱한 걸 고르는 것**이 실질적 비용이다.
 
-1인 프로젝트라 쓸 일이 없는 것들은 뺐다 — 리뷰어와 주고받는 워크플로
+**처음에 37개를 넣었다가 17개를 뺐다.** 기준은 겹침과 이 저장소에서의 실효성이다.
+
+- 다른 스킬을 부르기만 하는 한 줄 래퍼 — `grill-me`, `grill-with-docs`, `implement`, `ask-matt`
+- 같은 일을 하는 짝에서 하나씩 — `tdd`(`test-driven-development` 와 중복),
+  `diagnosing-bugs`(`systematic-debugging` 과 중복),
+  `improve-codebase-architecture`(`codebase-design` 과 중복),
+  `redesign-existing-projects`(`minimalist-ui` 와 중복)
+- 이슈 트래커를 전제하는 워크플로 — `to-spec`, `to-tickets`, `triage`, `wayfinder`.
+  이 저장소는 GitHub Issues 를 쓰지 않는다
+- 이 저장소의 방침과 어긋나는 것 — `finishing-a-development-branch`(브랜치를 따지 않고
+  `main` 에 직접 push 한다), `using-superpowers`(아래 참고)
+- 기능이 없는 것 — `ponytail-gain`(벤치마크 홍보), `ponytail-help`(레퍼런스 카드), `teach`
+
+되살리려면 원본 저장소에서 그 디렉터리만 다시 복사하면 된다. git 이력에도 남아 있다.
+
+처음부터 넣지 않은 것 — 리뷰어와 주고받는 워크플로
 (`requesting-code-review`, `receiving-code-review`), 멀티 에이전트
 (`dispatching-parallel-agents`, `subagent-driven-development`), `using-git-worktrees`,
 스킬 저작용(`writing-skills`, `writing-great-skills`).
@@ -331,13 +346,17 @@ npm run build
 - `minimalist-ui` 는 랜딩 페이지를 전제로 쓰인 부분이 있다(히어로 섹션, `py-24` 급 여백,
   스크롤 진입 애니메이션, 앰비언트 그라디언트). 이 앱은 밀도 높은 업무 도구이므로
   그 항목들은 따르지 않는다. 색·타이포·테두리·간격 원칙만 가져온다.
-- `test-driven-development`(superpowers)와 `tdd`(mattpocock)는 모든 변경에 테스트를
-  먼저 쓰라고 한다. 이 저장소에는 테스트 러너가 없다(5장). 러너를 들이기 전까지는
-  이 둘을 자동으로 따르지 않는다. 쓰려면 Vitest 도입이 먼저다.
-- `ponytail` 은 "테스트도 YAGNI" 쪽, TDD 스킬들은 "항상 먼저" 쪽이다. 정면으로 부딪힌다.
-  둘 다 켜지 말고, 작업 성격에 따라 하나만 고른다.
-- `using-superpowers` 는 어떤 응답보다 먼저 스킬을 호출하라고 강하게 요구한다.
-  이 프로젝트 규모에 과할 수 있다. 거슬리면 그 디렉터리만 지우면 나머지 13개는 남는다.
+- `test-driven-development` 는 모든 변경에 테스트를 먼저 쓰라고 한다. 이 저장소에는
+  테스트 러너가 없다(5장). 러너를 들이기 전까지는 자동으로 따르지 않는다.
+  쓰려면 Vitest 도입이 먼저다.
+- `ponytail` 은 "테스트도 YAGNI" 쪽, `test-driven-development` 는 "항상 먼저" 쪽이다.
+  정면으로 부딪힌다. 둘 다 켜지 말고, 작업 성격에 따라 하나만 고른다.
+- `executing-plans` 는 본문을 **직접 고쳤다.** 원본이 요구하던 워크트리 격리,
+  `finishing-a-development-branch` 호출, "main 에서 구현 시작 금지" 를 뺐다.
+  전부 1.1 의 push 방침과 어긋나거나 설치하지 않은 스킬을 가리키는 항목이었다.
+  원본 저장소에서 이 스킬을 다시 복사하면 그 셋이 되살아나니 그때 다시 뺀다.
+- `using-superpowers` 는 어떤 응답보다 먼저 스킬을 호출하라고 강하게 요구했다.
+  이 프로젝트 규모에 과해서 뺐다. 나머지 스킬은 필요할 때 개별로 부르면 그대로 동작한다.
 
 **의도적으로 설치하지 않은 것**
 
@@ -349,8 +368,7 @@ npm run build
 - 각 스킬의 `agents/openai.yaml` — 다른 런타임용
 
 일부 스킬에는 실행 스크립트가 딸려 있다(`brainstorming/scripts/`,
-`systematic-debugging/find-polluter.sh`, `diagnosing-bugs/scripts/`).
-스킬이 시키더라도 실행 전에 내용을 읽는다.
+`systematic-debugging/find-polluter.sh`). 스킬이 시키더라도 실행 전에 내용을 읽는다.
 
 **설치 방식** — 플러그인이 아니라 `.claude/skills/` 에 디렉터리째 복사했다. 그래서
 저장소에 함께 커밋되고 git 으로 버전이 남지만, 자동 업데이트는 안 된다. 갱신하려면
