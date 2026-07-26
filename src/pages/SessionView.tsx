@@ -89,13 +89,18 @@ export default function SessionView() {
     return <div className="login-wrap"><p className="muted">불러오는 중…</p></div>
   }
 
-  // 로그인 상태면 굳이 로그인 링크를 보여줄 이유가 없다.
+  // 이 경로는 인증 게이트 바깥이라 로그인해도 여기 머문다. 로그인한 사람에게
+  // 링크를 하나도 주지 않으면 입력창만 남은 막다른 화면이 되므로 돌아갈 길을 둔다.
   // 로그아웃 상태에서는 첫 화면과 똑같이 두어, 코드를 잘못 넣었을 때
   // 로그인으로 돌아갈 길이 사라지지 않게 한다.
   return (
     <CodeEntry
       footer={
-        status === 'ready' ? undefined : (
+        status === 'ready' ? (
+          <button type="button" className="text-link" onClick={() => nav('/')}>
+            Work Hub 로 돌아가기
+          </button>
+        ) : (
           <button type="button" className="text-link" onClick={signIn}>
             로그인
           </button>
