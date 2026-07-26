@@ -126,7 +126,8 @@ export default function Dashboard() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>안녕하세요, {member?.displayName?.split(' ')[0] ?? ''}님</h1>
+        {/* 쓰는 사람이 한 명이라 계정 표시 이름을 따라가지 않는다. AGENTS.md 2.1 참고 */}
+        <h1>안녕하세요, 도코님</h1>
         <span className="spacer" />
         <button className="btn sm" onClick={copyWeekly}>주간 보고 초안 복사</button>
       </div>
