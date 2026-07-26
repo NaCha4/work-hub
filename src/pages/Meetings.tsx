@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import DateInput from '../components/DateInput'
 import Modal from '../components/Modal'
 import MarkdownField from '../components/MarkdownField'
 import { useAuth } from '../lib/auth'
@@ -208,13 +209,11 @@ export default function Meetings() {
           <div className="row">
             <div className="field">
               <label>날짜</label>
-              <input type="date" className="input" value={draft.date}
-                onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+              <DateInput value={draft.date} onChange={(v) => setDraft({ ...draft, date: v })} />
             </div>
             <div className="field">
               <label>시간</label>
-              <input type="time" className="input" value={draft.time}
-                onChange={(e) => setDraft({ ...draft, time: e.target.value })} />
+              <DateInput type="time" value={draft.time} onChange={(v) => setDraft({ ...draft, time: v })} />
             </div>
             <div className="field">
               <label>장소</label>

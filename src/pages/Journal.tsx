@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import DateInput from '../components/DateInput'
 import Modal from '../components/Modal'
 import MarkdownField from '../components/MarkdownField'
 import { useAuth } from '../lib/auth'
@@ -104,11 +105,9 @@ export default function Journal() {
           <div className="row">
             <div className="field" style={{ flex: '0 0 160px' }}>
               <label>날짜</label>
-              <input
-                type="date"
-                className="input"
+              <DateInput
                 value={draft.date}
-                onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+                onChange={(v) => setDraft({ ...draft, date: v })}
               />
             </div>
             <div className="field" style={{ flex: 2 }}>

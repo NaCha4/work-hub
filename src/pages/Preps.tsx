@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
 import SessionManager from '../components/SessionManager'
 import { useAuth } from '../lib/auth'
@@ -122,8 +123,7 @@ export default function Preps() {
           </div>
           <div className="field" style={{ flex: '0 0 150px' }}>
             <label>일자</label>
-            <input type="date" className="input" value={editing.date}
-              onChange={(e) => setEditing({ ...editing, date: e.target.value })} />
+            <DateInput value={editing.date} onChange={(v) => setEditing({ ...editing, date: v })} />
           </div>
         </div>
 
