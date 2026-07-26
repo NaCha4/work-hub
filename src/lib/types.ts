@@ -12,9 +12,8 @@ export interface Member {
 /** 업무 일지 */
 export interface Journal {
   id: Id
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD. 일지는 하루 단위라 제목 없이 날짜로 구분한다. */
   date: string
-  title: string
   /** 오늘 한 일 (markdown) */
   done: string
   /** 내일 할 일 (markdown) */

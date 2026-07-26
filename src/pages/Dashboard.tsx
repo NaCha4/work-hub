@@ -159,7 +159,7 @@ export default function Dashboard() {
       .filter((j) => j.date >= since && j.authorUid === member?.uid)
       .sort((a, b) => a.date.localeCompare(b.date))
     if (mine.length === 0) return ''
-    const done = mine.map((j) => `### ${j.date} ${j.title}\n${j.done}`).join('\n\n')
+    const done = mine.map((j) => `### ${j.date}\n${j.done}`).join('\n\n')
     const next = mine.at(-1)?.next ?? ''
     const issues = mine.map((j) => j.blockers).filter((x) => x.trim()).join('\n')
     return [

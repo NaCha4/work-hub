@@ -10,7 +10,6 @@ import type { Journal as JournalEntry } from '../lib/types'
 const blank = (author: { uid: string; name: string }) => ({
   id: '',
   date: today(),
-  title: '',
   done: '- ',
   next: '- ',
   blockers: '',
@@ -31,7 +30,7 @@ export default function Journal() {
     const k = q.trim().toLowerCase()
     if (!k) return items
     return items.filter((j) =>
-      [j.title, j.done, j.next, j.blockers, ...j.tags].join(' ').toLowerCase().includes(k),
+      [j.date, j.done, j.next, j.blockers, ...j.tags].join(' ').toLowerCase().includes(k),
     )
   }, [items, q])
 
@@ -47,7 +46,7 @@ export default function Journal() {
   }
 
   async function remove(j: JournalEntry) {
-    if (!confirm(`"${j.title || j.date}" 일지를 삭제할까요?`)) return
+    if (!confirm(`${j.date} 일지를 삭제할까요?`)) return
     await deleteDocById('journals', j.id)
   }
 
@@ -77,8 +76,8 @@ export default function Journal() {
       {filtered.map((j) => (
         <div className="card" key={j.id}>
           <div className="card-head">
-            <h3>{j.title || '(제목 없음)'}</h3>
-            <span className="muted" style={{ fontSize: 12 }}>{j.date} · {j.authorName}</span>
+            <h3>{j.date}</h3>
+            <span className="muted" style={{ fontSize: 12 }}>{j.authorName}</span>
             <span className="spacer" />
             <button className="btn ghost sm" onClick={() => setDraft(j)}>편집</button>
             <button className="btn ghost sm danger" onClick={() => remove(j)}>삭제</button>
@@ -102,23 +101,9 @@ export default function Journal() {
           onClose={() => setDraft(null)}
           onSubmit={save}
         >
-          <div className="row">
-            <div className="field" style={{ flex: '0 0 160px' }}>
-              <label>날짜</label>
-              <DateInput
-                value={draft.date}
-                onChange={(v) => setDraft({ ...draft, date: v })}
-              />
-            </div>
-            <div className="field" style={{ flex: 2 }}>
-              <label>제목</label>
-              <input
-                className="input"
-                placeholder="예) 온보딩 2일차 - 개발 환경 세팅"
-                value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              />
-            </div>
+          <div className="field" style={{ maxWidth: 160 }}>
+            <label>날짜</label>
+            <DateInput value={draft.date} onChange={(v) => setDraft({ ...draft, date: v })} />
           </div>
           <MarkdownField
             label="오늘 한 일"
