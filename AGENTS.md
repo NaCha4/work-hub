@@ -261,13 +261,19 @@ gh api -X PUT repos/NaCha4/work-hub/pages -f build_type=workflow
 - **GitHub Secrets** (`VITE_FIREBASE_*` 6개) — 없으면 배포본이 "설정이 필요합니다" 화면이 된다
 - **Firebase 승인된 도메인** — Authentication > Settings 에 `nacha4.github.io` 가 없으면
   배포본에서 Google 로그인 팝업이 `auth/unauthorized-domain` 으로 차단된다
-- **구글 캘린더 연동(선택)** — Google Cloud Console 에서 세 가지를 맞춰야 켜진다.
-  하나라도 없으면 연동만 꺼진 채 나머지는 정상 동작한다.
-  - OAuth 동의 화면에 `.../auth/calendar.readonly` 스코프 추가. 본인만 쓰므로 게시 상태를
-    `테스트` 로 두고 본인 계정을 테스트 사용자에 넣으면 구글 검수를 받지 않아도 된다
+- **구글 캘린더 연동(선택)** — Google Cloud Console 에서 맞춰야 켜진다. 하나라도 없으면
+  연동만 꺼진 채 나머지는 정상 동작한다. Firebase 프로젝트가 곧 Cloud 프로젝트이므로
+  `work-hub-c0e3c` 안에서 하고 새 프로젝트를 만들지 않는다.
+  - Google Calendar API 사용 설정
+  - Google Auth Platform > 대상 을 **Internal 로 둔다.** 조직 계정이라 고를 수 있고,
+    이러면 검수도 100명 제한도 없다. **External + 테스트 는 인증이 7일마다 만료되어**
+    매주 다시 동의해야 하므로 최후의 수단이다
+  - 데이터 액세스에 `.../auth/calendar.readonly` 스코프 추가
   - 웹 클라이언트의 **승인된 자바스크립트 원본**에 `https://nacha4.github.io` 와
     `http://localhost:5173` 추가
   - 그 클라이언트 ID 를 `VITE_GOOGLE_CLIENT_ID` 로 `.env` 와 GitHub Secrets 양쪽에 등록
+  - Workspace 관리 콘솔의 API 제어에서 캘린더가 제한돼 있으면 관리자가 이 앱을
+    신뢰 목록에 넣어야 한다. 관리자가 본인이 아니면 여기서 막힐 수 있다
 
 ### 규칙 배포
 
