@@ -12,7 +12,6 @@ import {
   TASK_STATUS_LABEL,
   type Journal,
   type Meeting,
-  type Prep,
   type Task,
   type TaskPriority,
   type TaskStatus,
@@ -50,7 +49,6 @@ export default function Dashboard() {
   const { items: tasks, error } = useCollection<Task>('tasks', enabled)
   const { items: journals } = useCollection<Journal>('journals', enabled)
   const { items: meetings } = useCollection<Meeting>('meetings', enabled)
-  const { items: preps } = useCollection<Prep>('preps', enabled)
   const [draft, setDraft] = useState<Task | null>(null)
   const [project, setProject] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
@@ -63,8 +61,6 @@ export default function Dashboard() {
   )
   const inProject = tasks.filter((x) => !project || x.project === project)
   const open = inProject.filter((x) => x.status !== 'done')
-  const overdue = open.filter((x) => x.due && x.due < t)
-  const dueToday = open.filter((x) => x.due === t)
   const upcoming = meetings.filter((m) => m.date >= t).sort((a, b) => a.date.localeCompare(b.date))
   const wroteToday = journals.some((j) => j.date === t && j.authorUid === member?.uid)
 
@@ -200,15 +196,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid cols-3">
-        <Stat label="진행 중인 할 일" value={open.length} />
-        <Stat label="기한 지남" value={overdue.length} danger={overdue.length > 0} />
-        <Stat label="오늘 마감" value={dueToday.length} />
-        <Stat label="작성한 일지" value={journals.length} to="/journal" />
-        <Stat label="회의록" value={meetings.length} to="/meetings" />
-        <Stat label="준비자료" value={preps.length} to="/preps" />
-      </div>
-
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-head">
           <h3>할 일</h3>
@@ -341,20 +328,3 @@ export default function Dashboard() {
   )
 }
 
-function Stat({ label, value, to, danger }: { label: string; value: number; to?: string; danger?: boolean }) {
-  const body = (
-    <>
-      <div className="muted" style={{ fontSize: 12 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: danger ? 'var(--danger)' : 'inherit' }}>
-        {value}
-      </div>
-    </>
-  )
-  // 할 일 통계는 바로 아래 목록이 실체라 링크를 걸 곳이 없다.
-  if (!to) return <div className="card">{body}</div>
-  return (
-    <Link to={to} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-      {body}
-    </Link>
-  )
-}
