@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CODE_LEN, isValidCodeShape, normalizeCode } from '../lib/session'
+import { CODE_LEN, fetchSession, isValidCodeShape, normalizeCode } from '../lib/session'
 
 interface Props {
   /** 로그인 과정에서 생긴 오류. 세션 코드에 대한 오류는 여기로 들어오지 않는다 */
@@ -17,19 +17,26 @@ interface Props {
 export default function CodeEntry({ externalError, footer }: Props) {
   const nav = useNavigate()
   const [input, setInput] = useState('')
+  const latest = useRef('')
 
   /**
-   * 코드가 다 채워지는 순간 바로 넘어간다. 코드를 넣는 것 말고 할 일이 없는 화면이라
-   * 확인 버튼을 한 번 더 누르게 할 이유가 없다.
+   * 코드가 다 채워지면 여기서 먼저 열어보고, 열리는 코드일 때만 화면을 넘긴다.
+   * 확인 버튼이 없는 것도, 틀렸을 때 아무 말이 없는 것도 같은 이유다 — 코드 자체가
+   * 유일한 인증 수단이라 어떤 반응이든 세션에 대한 단서가 된다.
    *
-   * 형식이 어긋나도 아무 말을 하지 않는다. 맞았는지 틀렸는지, 왜 안 되는지를
-   * 알려주지 않는 것이 이 화면의 규칙이다 — 코드 자체가 유일한 인증 수단이라
-   * 어떤 반응이든 세션에 대한 단서가 된다.
+   * 조회 결과를 보지 않고 곧바로 넘기면 틀린 코드에서도 라우트가 바뀌어
+   * 입력 화면이 다시 그려진다(입력값이 지워지고 화면이 깜빡인다). 그것 자체가
+   * "그 코드는 아니다" 라는 응답이 되므로, 실패하면 아무것도 하지 않는다.
    */
   function change(value: string) {
     const raw = normalizeCode(value).slice(0, CODE_LEN)
     setInput(raw)
-    if (isValidCodeShape(raw)) nav(`/s/${raw}`)
+    latest.current = raw
+    if (!isValidCodeShape(raw)) return
+    void fetchSession(raw).then((r) => {
+      // 조회하는 사이에 입력이 바뀌었으면 이미 지난 결과다.
+      if (r.ok && latest.current === raw) nav(`/s/${raw}`)
+    })
   }
 
   return (
