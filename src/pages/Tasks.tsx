@@ -196,10 +196,13 @@ export default function Tasks() {
             </div>
             <div className="field">
               <label>마감일</label>
+              {/* 칸 아무 데나 눌러도 달력이 열리게 한다. 기본 동작으로는 오른쪽 끝
+                  작은 아이콘을 정확히 눌러야만 열려서 날짜를 손으로 치게 된다. */}
               <input
                 type="date"
                 className="input"
                 value={draft.due}
+                onClick={(e) => e.currentTarget.showPicker?.()}
                 onChange={(e) => setDraft({ ...draft, due: e.target.value })}
               />
             </div>
