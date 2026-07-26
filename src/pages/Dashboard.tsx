@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { useCollection } from '../lib/db'
+import { updateDocById, useCollection } from '../lib/db'
 import { today } from '../lib/markdown'
 import { TASK_STATUS_LABEL, type Journal, type Meeting, type Prep, type Task } from '../lib/types'
 
@@ -19,6 +19,8 @@ export default function Dashboard() {
   const { items: journals } = useCollection<Journal>('journals', enabled)
   const { items: meetings } = useCollection<Meeting>('meetings', enabled)
   const { items: preps } = useCollection<Prep>('preps', enabled)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
 
   const t = today()
   const open = tasks.filter((x) => x.status !== 'done')
@@ -26,6 +28,76 @@ export default function Dashboard() {
   const dueToday = open.filter((x) => x.due === t)
   const upcoming = meetings.filter((m) => m.date >= t).sort((a, b) => a.date.localeCompare(b.date))
   const wroteToday = journals.some((j) => j.date === t && j.authorUid === member?.uid)
+
+  // 상태로 나누지 않고 한 줄로 세운다. 순서는 order 가 정하고 드래그로 바꾼다.
+  const ordered = [...open].sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
+  const finished = tasks
+    .filter((x) => x.status === 'done')
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  /** 체크 한 번으로 완료·되돌리기. 목록을 벗어나지 않고 처리한다. */
+  async function toggleDone(x: Task) {
+    await updateDocById('tasks', x.id, { status: x.status === 'done' ? 'todo' : 'done' })
+  }
+
+  /**
+   * 놓인 자리의 앞뒤 order 사이 값을 준다. 나머지 카드의 order 는 건드리지 않으므로
+   * 순서를 바꿔도 쓰기는 한 번이다.
+   */
+  async function dropOn(targetId: string) {
+    const id = dragId
+    setDragId(null)
+    setOverId(null)
+    if (!id || id === targetId) return
+    const from = ordered.findIndex((x) => x.id === id)
+    const to = ordered.findIndex((x) => x.id === targetId)
+    if (from < 0 || to < 0) return
+    const rest = ordered.filter((x) => x.id !== id)
+    // 아래로 끌었으면 target 다음 자리, 위로 끌었으면 target 앞자리다.
+    const at = rest.findIndex((x) => x.id === targetId) + (from < to ? 1 : 0)
+    const above = at === 0 ? (rest[0].order ?? 0) + 2048 : (rest[at - 1].order ?? 0)
+    const below =
+      at >= rest.length ? (rest[rest.length - 1].order ?? 0) - 2048 : (rest[at].order ?? 0)
+    await updateDocById('tasks', id, { order: (above + below) / 2 })
+  }
+
+  function row(x: Task, movable: boolean) {
+    const over = movable && !!dragId && dragId !== x.id && overId === x.id
+    const after =
+      over && ordered.findIndex((y) => y.id === dragId) < ordered.findIndex((y) => y.id === x.id)
+    const cls = [
+      'task-row',
+      movable ? 'movable' : 'dim',
+      dragId === x.id ? 'dragging' : '',
+      over ? (after ? 'drop-after' : 'drop-before') : '',
+    ]
+    return (
+      <div
+        key={x.id}
+        className={cls.filter(Boolean).join(' ')}
+        draggable={movable}
+        onDragStart={() => setDragId(x.id)}
+        onDragEnd={() => { setDragId(null); setOverId(null) }}
+        onDragOver={movable ? (e) => { e.preventDefault(); setOverId(x.id) } : undefined}
+        onDrop={movable ? (e) => { e.preventDefault(); void dropOn(x.id) } : undefined}
+      >
+        <input
+          type="checkbox"
+          checked={x.status === 'done'}
+          onChange={() => void toggleDone(x)}
+          aria-label={`${x.title} 완료`}
+        />
+        <span className={`chip status-${x.status}`}>{TASK_STATUS_LABEL[x.status]}</span>
+        <span className="t">{x.title}</span>
+        {x.project && <span className="sub muted">{x.project}</span>}
+        {x.due && (
+          <span className={`sub ${x.due < t && x.status !== 'done' ? 'overdue' : 'muted'}`}>
+            {x.due.slice(5)}
+          </span>
+        )}
+      </div>
+    )
+  }
 
   /** 최근 7일 일지를 주간 보고 초안으로 합친다. */
   const weekly = useMemo(() => {
@@ -75,38 +147,36 @@ export default function Dashboard() {
         <Stat label="준비자료" value={preps.length} to="/preps" />
       </div>
 
-      <div className="grid cols-2" style={{ marginTop: 16 }}>
-        <div className="card">
-          <div className="card-head"><h3>다가오는 회의</h3></div>
-          {upcoming.length === 0 && <p className="muted">예정된 회의가 없습니다.</p>}
-          {upcoming.slice(0, 6).map((m) => (
-            <div key={m.id} style={{ display: 'flex', gap: 8, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-              <span className="muted" style={{ fontSize: 12.5, width: 92, flex: '0 0 92px' }}>
-                {m.date.slice(5)} {m.time}
-              </span>
-              <span>{m.title}</span>
-            </div>
-          ))}
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-head">
+          <h3>할 일</h3>
+          <span className="muted" style={{ fontSize: 12 }}>{ordered.length}</span>
+          <span className="spacer" />
+          <Link className="text-link" to="/tasks">보드로 보기</Link>
         </div>
+        {ordered.length === 0 && <p className="muted">남은 할 일이 없습니다.</p>}
+        {ordered.map((x) => row(x, true))}
 
-        <div className="card">
-          <div className="card-head"><h3>급한 할 일</h3></div>
-          {open.length === 0 && <p className="muted">남은 할 일이 없습니다.</p>}
-          {[...open]
-            .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
-            .slice(0, 6)
-            .map((x) => (
-              <div key={x.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-                <span className={`chip status-${x.status}`}>{TASK_STATUS_LABEL[x.status]}</span>
-                <span style={{ flex: 1 }}>{x.title}</span>
-                {x.due && (
-                  <span className={`muted ${x.due < t ? 'overdue' : ''}`} style={{ fontSize: 12 }}>
-                    {x.due.slice(5)}
-                  </span>
-                )}
-              </div>
-            ))}
-        </div>
+        {/* 완료가 쌓이면 화면이 한없이 길어진다. 기본은 접어 두고 필요할 때만 편다. */}
+        {finished.length > 0 && (
+          <details className="done-fold">
+            <summary>완료 {finished.length}</summary>
+            {finished.map((x) => row(x, false))}
+          </details>
+        )}
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-head"><h3>다가오는 회의</h3></div>
+        {upcoming.length === 0 && <p className="muted">예정된 회의가 없습니다.</p>}
+        {upcoming.slice(0, 6).map((m) => (
+          <div key={m.id} style={{ display: 'flex', gap: 8, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+            <span className="muted" style={{ fontSize: 12.5, width: 92, flex: '0 0 92px' }}>
+              {m.date.slice(5)} {m.time}
+            </span>
+            <span>{m.title}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
