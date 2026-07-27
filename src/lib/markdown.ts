@@ -30,6 +30,19 @@ export function withDow(date: string): string {
   return `${date} (${DOW[new Date(y, m - 1, d).getDay()]})`
 }
 
+/**
+ * 마감까지 남은 날. 둘 다 'YYYY-MM-DD'.
+ * 시각이 아니라 날짜끼리 빼야 하므로 UTC 자정으로 맞춰 계산한다.
+ * 로컬 시각으로 빼면 서머타임이나 시분 차이로 하루가 어긋난다.
+ */
+export function dday(due: string, from: string): string {
+  const [y1, m1, d1] = from.split('-').map(Number)
+  const [y2, m2, d2] = due.split('-').map(Number)
+  const days = Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000)
+  if (days === 0) return 'D-day'
+  return days > 0 ? `D-${days}` : `D+${-days}`
+}
+
 export function formatDate(ts: number): string {
   if (!ts) return ''
   return new Date(ts).toLocaleString('ko-KR', {
