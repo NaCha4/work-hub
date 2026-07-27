@@ -52,6 +52,7 @@ declare global {
             scope: string
             callback: (response: TokenResponse) => void
             error_callback?: (error: { type?: string }) => void
+            hint?: string
           }) => TokenClient
         }
       }
@@ -62,12 +63,82 @@ declare global {
 let token = ''
 let expiresAt = 0
 let client: TokenClient | null = null
+let clientHint = ''
 let pending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null
 let inflight: Promise<string> | null = null
 let scriptLoad: Promise<void> | null = null
 
 /** GIS 가 콜백을 영영 부르지 않는 경우가 있다. 그대로 두면 화면이 "확인 중" 에 굳는다. */
 const TIMEOUT_MS = 20_000
+
+const TOKEN_KEY = 'wh-cal-token'
+const HINT_KEY = 'wh-cal-account'
+
+/**
+ * 어느 계정으로 받았는지 기억해 다음에 GIS 에 알려준다.
+ *
+ * 브라우저에 구글 계정이 둘 이상 로그인돼 있으면(이 앱은 로그인 계정과 캘린더
+ * 계정이 다르다) 구글이 어느 쪽인지 몰라 계정 선택 창을 띄운다. 미리 지목해두면
+ * 그 과정이 사라져 조용히 갱신된다. 계정 주소는 이 브라우저에만 남고 저장소로
+ * 나가지 않는다 — 그래서 .env 가 아니라 localStorage 를 쓴다.
+ */
+function readHint() {
+  try {
+    return localStorage.getItem(HINT_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function rememberHint(email: string) {
+  if (!email || email === readHint()) return
+  try {
+    localStorage.setItem(HINT_KEY, email)
+  } catch {
+    // 저장이 막혀 있어도 동작에는 지장이 없다. 다음에 한 번 더 물어볼 뿐이다.
+  }
+}
+
+/**
+ * 받아둔 토큰을 새로고침 뒤에도 쓴다.
+ *
+ * 메모리에만 두면 화면을 새로 열 때마다 구글에 다시 요청하게 되고, 그때마다
+ * 창이 깜빡인다. 탭을 닫으면 지워지는 sessionStorage 에 두어 그 사이만 아낀다.
+ * localStorage 로 올리지 않는 건 브라우저를 껐다 켠 뒤까지 남길 이유가 없어서다.
+ */
+function loadCachedToken() {
+  try {
+    const raw = sessionStorage.getItem(TOKEN_KEY)
+    if (!raw) return
+    const v = JSON.parse(raw) as { t?: string; e?: number }
+    if (v.t && v.e && v.e > Date.now()) {
+      token = v.t
+      expiresAt = v.e
+    }
+  } catch {
+    // 값이 깨져 있으면 없는 셈 친다. 다시 받으면 그만이다.
+  }
+}
+
+function cacheToken() {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ t: token, e: expiresAt }))
+  } catch {
+    // 저장 실패는 넘어간다. 이번 화면에서만 메모리로 쓴다.
+  }
+}
+
+function forgetToken() {
+  token = ''
+  expiresAt = 0
+  try {
+    sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // 지우지 못해도 만료 검사에서 걸러진다.
+  }
+}
+
+loadCachedToken()
 
 /** Google Identity Services 스크립트. npm 패키지가 없어 태그로 넣는다. */
 function loadScript() {
@@ -107,18 +178,25 @@ async function getToken(interactive: boolean): Promise<string> {
   const oauth2 = window.google?.accounts.oauth2
   if (!oauth2) throw new Error('구글 인증 스크립트를 불러오지 못했습니다.')
 
-  client ??= oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPE,
-    callback: (res) => {
-      if (!res.access_token) return settle({ error: res.error ?? '토큰을 받지 못했습니다.' })
-      token = res.access_token
-      // 만료 1분 전부터는 새로 받는다. 요청 도중 만료되는 것을 피한다.
-      expiresAt = Date.now() + (res.expires_in ?? 3600) * 1000 - 60_000
-      settle({ token })
-    },
-    error_callback: (err) => settle({ error: err.type ?? '인증 창이 열리지 않았습니다.' }),
-  })
+  // 기억해둔 계정이 생기거나 바뀌면 그 값을 물린 새 클라이언트가 필요하다.
+  const hint = readHint()
+  if (!client || clientHint !== hint) {
+    clientHint = hint
+    client = oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPE,
+      ...(hint ? { hint } : {}),
+      callback: (res) => {
+        if (!res.access_token) return settle({ error: res.error ?? '토큰을 받지 못했습니다.' })
+        token = res.access_token
+        // 만료 1분 전부터는 새로 받는다. 요청 도중 만료되는 것을 피한다.
+        expiresAt = Date.now() + (res.expires_in ?? 3600) * 1000 - 60_000
+        cacheToken()
+        settle({ token })
+      },
+      error_callback: (err) => settle({ error: err.type ?? '인증 창이 열리지 않았습니다.' }),
+    })
+  }
 
   // 앞선 요청이 남아 있으면 먼저 정리한다. 그대로 덮어쓰면 그 약속이 영영 안 풀린다.
   settle({ error: '새 요청으로 대체되었습니다.' })
@@ -251,10 +329,7 @@ async function api<T>(path: string, t: string): Promise<T> {
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${t}` } })
   if (!res.ok) {
     // 권한이 끊겼으면 캐시한 토큰을 버려 다음 시도에서 새로 받게 한다.
-    if (res.status === 401 || res.status === 403) {
-      token = ''
-      expiresAt = 0
-    }
+    if (res.status === 401 || res.status === 403) forgetToken()
     throw new Error(`캘린더를 불러오지 못했습니다. (${res.status})`)
   }
   return (await res.json()) as T
@@ -274,8 +349,14 @@ async function fetchMonth(interactive: boolean, month: string): Promise<Calendar
 
   // primary 하나만 보면 조직 계정에서 흔한 공유·부 캘린더의 일정을 통째로 놓친다.
   const list = await api<{
-    items?: { id?: string; deleted?: boolean; backgroundColor?: string }[]
+    items?: { id?: string; deleted?: boolean; backgroundColor?: string; primary?: boolean }[]
   }>('/users/me/calendarList?maxResults=250&minAccessRole=reader', t)
+
+  // 기본 캘린더의 id 가 곧 그 계정 주소다. 다음 갱신 때 어느 계정인지 지목하는 데 쓴다.
+  // 스코프를 더 받지 않고 이미 부른 응답에서 얻는다.
+  const primary = (list.items ?? []).find((c) => c.primary)?.id
+  if (primary) rememberHint(primary)
+
   const cals = (list.items ?? [])
     .filter((c) => c.id && !c.deleted && !isNoise(c.id))
     .map((c) => ({ id: c.id as string, color: c.backgroundColor ?? '' }))
