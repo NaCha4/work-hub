@@ -7,7 +7,7 @@ const NAV: { to: string; label: string; ico: IconName }[] = [
   // 할 일은 별도 화면이 아니라 대시보드 안에 있다.
   { to: '/', label: '대시보드', ico: 'dashboard' },
   { to: '/journal', label: '업무 일지', ico: 'journal' },
-  { to: '/meetings', label: '회의록', ico: 'meetings' },
+  { to: '/meetings', label: '회의 메모', ico: 'meetings' },
   { to: '/preps', label: '준비자료', ico: 'preps' },
   { to: '/settings', label: '설정', ico: 'settings' },
 ]

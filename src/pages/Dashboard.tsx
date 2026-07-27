@@ -7,12 +7,11 @@ import MonthCalendar from '../components/MonthCalendar'
 import { useAuth } from '../lib/auth'
 import { useCalendarEvents } from '../lib/calendar'
 import { createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
-import { parseTags, today } from '../lib/markdown'
+import { dday, parseTags, today } from '../lib/markdown'
 import {
   TASK_PRIORITY_LABEL,
   TASK_STATUS_LABEL,
   type Journal,
-  type Meeting,
   type Task,
   type TaskPriority,
   type TaskStatus,
@@ -49,7 +48,6 @@ export default function Dashboard() {
   const enabled = !!member
   const { items: tasks, error } = useCollection<Task>('tasks', enabled)
   const { items: journals } = useCollection<Journal>('journals', enabled)
-  const { items: meetings } = useCollection<Meeting>('meetings', enabled)
   const [month, setMonth] = useState(() => today().slice(0, 7))
   const cal = useCalendarEvents(month)
   const [draft, setDraft] = useState<Task | null>(null)
@@ -65,14 +63,15 @@ export default function Dashboard() {
   )
   const inProject = tasks.filter((x) => !project || x.project === project)
   const open = inProject.filter((x) => x.status !== 'done')
-  // 회의록과 구글 캘린더 일정을 한 달력 위에 얹는다. 캘린더 쪽은 저장하지 않고
-  // 화면에서만 합치므로, 연동이 꺼져 있으면 회의록만 남는다.
-  const agenda = [
-    ...meetings
-      .filter((m) => m.date.startsWith(month))
-      .map((m) => ({ key: m.id, date: m.date, time: m.time, title: m.title, link: '' })),
-    ...cal.events.map((e) => ({ key: `g-${e.id}`, date: e.date, time: e.time, title: e.title, link: e.link })),
-  ].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+  // 달력은 구글 캘린더만 비춘다. 회의 메모는 받아적는 곳이지 일정이 아니라서
+  // 여기 올리면 실제 일정과 섞여 무엇이 약속인지 알 수 없게 된다.
+  const agenda = cal.events.map((e) => ({
+    key: `g-${e.id}`,
+    date: e.date,
+    time: e.time,
+    title: e.title,
+    link: e.link,
+  }))
 
   function shiftMonth(delta: number) {
     const [y, m] = month.split('-').map(Number)
@@ -226,6 +225,7 @@ export default function Dashboard() {
                         <span className={`due${x.due < t && x.status !== 'done' ? ' overdue' : ''}`}>
                           <Icon name="calendar" size={12} />
                           {x.due.slice(5)}
+                          {x.status !== 'done' && <b className="dday">{dday(x.due, t)}</b>}
                         </span>
                       )}
                       {x.project && <span>· {x.project}</span>}
