@@ -8,11 +8,10 @@ import UpcomingMeetings from '../components/UpcomingMeetings'
 import { useAuth } from '../lib/auth'
 import { useCalendarEvents } from '../lib/calendar'
 import { createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
-import { dday, parseTags, today } from '../lib/markdown'
+import { dday, parseTags, today, withDow } from '../lib/markdown'
 import {
   TASK_PRIORITY_LABEL,
   TASK_STATUS_LABEL,
-  type Journal,
   type Task,
   type TaskPriority,
   type TaskStatus,
@@ -20,13 +19,6 @@ import {
 
 const STATUSES: TaskStatus[] = ['backlog', 'todo', 'doing', 'review', 'done']
 const PRIORITIES: TaskPriority[] = ['low', 'normal', 'high', 'urgent']
-
-function daysAgo(n: number) {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  const p = (x: number) => String(x).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
 
 const blank = (uid: string, name: string): Task => ({
   id: '',
@@ -48,7 +40,6 @@ export default function Dashboard() {
   const { member } = useAuth()
   const enabled = !!member
   const { items: tasks, error } = useCollection<Task>('tasks', enabled)
-  const { items: journals } = useCollection<Journal>('journals', enabled)
   const [month, setMonth] = useState(() => today().slice(0, 7))
   const cal = useCalendarEvents(month)
   const [draft, setDraft] = useState<Task | null>(null)
@@ -128,39 +119,9 @@ export default function Dashboard() {
     })
   }
 
-  /** 최근 7일 일지를 주간 보고 초안으로 합친다. */
-  const weekly = useMemo(() => {
-    const since = daysAgo(7)
-    const mine = journals
-      .filter((j) => j.date >= since && j.authorUid === member?.uid)
-      .sort((a, b) => a.date.localeCompare(b.date))
-    if (mine.length === 0) return ''
-    const done = mine.map((j) => `### ${j.date}\n${j.done}`).join('\n\n')
-    const next = mine.at(-1)?.next ?? ''
-    const issues = mine.map((j) => j.blockers).filter((x) => x.trim()).join('\n')
-    return [
-      `# 주간 업무 보고 (${since} ~ ${t})`,
-      '\n## 이번 주 한 일\n', done,
-      '\n## 다음 주 계획\n', next,
-      issues ? `\n## 이슈\n${issues}` : '',
-    ].join('\n')
-  }, [journals, member, t])
-
-  async function copyWeekly() {
-    if (!weekly) return alert('최근 7일간 작성한 일지가 없습니다.')
-    await navigator.clipboard.writeText(weekly)
-    alert('주간 보고 초안을 클립보드에 복사했습니다.')
-  }
-
   return (
     <div className="page">
-      <div className="page-head">
-        {/* 쓰는 사람이 한 명이라 계정 표시 이름을 따라가지 않는다. AGENTS.md 2.1 참고 */}
-        <h1>안녕하세요, 도코님</h1>
-        <span className="spacer" />
-        <button className="btn sm" onClick={copyWeekly}>주간 보고 초안 복사</button>
-      </div>
-      <p className="page-sub">{t}</p>
+      <p className="muted" style={{ margin: '0 0 16px', fontSize: 13 }}>{withDow(t)}</p>
 
       {error && <div className="error-banner">{error}</div>}
 
