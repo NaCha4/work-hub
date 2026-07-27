@@ -4,7 +4,7 @@ import Icon from '../components/Icon'
 import SessionManager from '../components/SessionManager'
 import { useAuth } from '../lib/auth'
 import { byUpdated, createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
-import { PREP_SANDBOX, downloadHtml, prepHtml, withPrintBridge } from '../lib/exportHtml'
+import { PREP_SANDBOX, downloadHtml, prepHtml, withViewerBridge } from '../lib/exportHtml'
 import { formatDate, parseTags, today } from '../lib/markdown'
 import type { Prep } from '../lib/types'
 
@@ -38,7 +38,7 @@ export default function Preps() {
   const frame = useRef<HTMLIFrameElement>(null)
 
   const preview = useMemo(
-    () => (editing ? withPrintBridge(prepHtml(editing)) : ''),
+    () => (editing ? withViewerBridge(prepHtml(editing)) : ''),
     [editing],
   )
 

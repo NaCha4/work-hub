@@ -423,7 +423,32 @@ a { color: var(--accent); }
 .viewer-bar .spacer { flex: 1; }
 .viewer-title { font-weight: 600; }
 .viewer-note { color: var(--muted); font-size: 12.5px; }
-.viewer-frame { flex: 1; width: 100%; border: 0; background: var(--bg); }
+.viewer-stage { position: relative; flex: 1; min-height: 0; }
+.viewer-frame { width: 100%; height: 100%; border: 0; background: var(--bg); display: block; }
+
+/* ---------- 발표 중 덧칠 ---------- */
+/* 자료 위에 겹치는 투명한 층. 발표자가 그릴 때만 입력을 받고, 그 외에는
+   통과시켜야 시청자가 자료를 스크롤할 수 있다. */
+.live-layer { position: absolute; inset: 0; }
+.live-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.live-dot {
+  position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border-radius: 50%; background: #e5484d88; border: 2px solid #e5484d;
+  box-shadow: 0 0 0 4px #e5484d22;
+  transition: left 60ms linear, top 60ms linear;
+}
+.live-bar {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px; z-index: 2;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px 10px; box-shadow: var(--shadow);
+}
+.live-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+.live-swatch {
+  width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; padding: 0;
+}
+.live-swatch.on { border-color: var(--fg); }
 
 /* ---------- modal ---------- */
 .modal-backdrop {

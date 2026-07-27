@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import CodeEntry from '../components/CodeEntry'
+import LiveLayer from '../components/LiveLayer'
 import { useAuth } from '../lib/auth'
-import { firebaseConfigured } from '../lib/firebase'
-import { PREP_SANDBOX, downloadHtml, prepHtml, withPrintBridge } from '../lib/exportHtml'
+import { firebaseConfigured, liveConfigured } from '../lib/firebase'
+import { PREP_SANDBOX, downloadHtml, prepHtml, withViewerBridge } from '../lib/exportHtml'
+import { syncMeta } from '../lib/live'
 import { fetchSession } from '../lib/session'
 import type { Session } from '../lib/types'
 
@@ -17,7 +19,7 @@ import type { Session } from '../lib/types'
 export default function SessionView() {
   const { code: codeParam } = useParams()
   const nav = useNavigate()
-  const { status, signIn } = useAuth()
+  const { status, signIn, user } = useAuth()
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
@@ -38,9 +40,23 @@ export default function SessionView() {
   }, [codeParam])
 
   const html = useMemo(
-    () => (session ? withPrintBridge(prepHtml(session.snapshot)) : ''),
+    () => (session ? withViewerBridge(prepHtml(session.snapshot)) : ''),
     [session],
   )
+
+  // 이 세션을 만든 사람만 덧칠할 수 있다. 나머지는 받아 보기만 한다.
+  const presenter = !!user && !!session && session.createdBy === user.uid
+
+  // RTDB 규칙은 Firestore 를 못 읽으므로 세션 상태를 그쪽에도 적어둬야 통로가 열린다.
+  // 발표자가 화면을 열 때 맞춰두면 이 기능이 생기기 전에 만든 세션도 그대로 쓸 수 있다.
+  useEffect(() => {
+    if (!presenter || !session || !liveConfigured) return
+    void syncMeta(session.id, {
+      ownerUid: session.createdBy,
+      active: session.active,
+      expiresAt: session.expiresAt,
+    })
+  }, [presenter, session])
 
   if (!firebaseConfigured) {
     return (
@@ -74,13 +90,18 @@ export default function SessionView() {
             다른 코드
           </button>
         </header>
-        <iframe
-          ref={frame}
-          className="viewer-frame"
-          title={session.snapshot.title}
-          srcDoc={html}
-          sandbox={PREP_SANDBOX}
-        />
+        <div className="viewer-stage">
+          <iframe
+            ref={frame}
+            className="viewer-frame"
+            title={session.snapshot.title}
+            srcDoc={html}
+            sandbox={PREP_SANDBOX}
+          />
+          {liveConfigured && (
+            <LiveLayer code={session.id} presenter={presenter} frame={frame} />
+          )}
+        </div>
       </div>
     )
   }

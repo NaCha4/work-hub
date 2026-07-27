@@ -105,12 +105,35 @@ export function prepHtml(prep: PrepDoc): string {
 export const PREP_SANDBOX = 'allow-scripts allow-modals allow-popups'
 
 /**
- * 인쇄 버튼용 다리. 출처가 갈려 있어 부모가 iframe 의 print() 를 직접 못 부른다.
+ * 부모와 iframe 을 잇는 다리.
+ *
+ * 출처가 갈려 있어 부모가 iframe 안을 직접 만지지 못한다. 그래서 필요한 것만
+ * postMessage 로 주고받는다. 지금 다루는 것은 둘이다.
+ *   - 인쇄: 부모가 시키면 iframe 이 자기 print() 를 부른다.
+ *   - 스크롤: 발표자 화면이 어디를 보고 있는지 알려주고, 시청자 화면은 그 자리로 맞춘다.
+ *     이게 없으면 발표자가 3쪽을 가리켜도 시청자 화면은 1쪽에 있어 덧칠이 엉뚱한 곳에 뜬다.
+ *
  * 문서 뒤에 덧붙이기만 하고, 내려받는 파일에는 넣지 않아 원본을 그대로 남긴다.
  */
-export function withPrintBridge(html: string): string {
+export function withViewerBridge(html: string): string {
   return `${html}
-<script>addEventListener('message',function(e){if(e.data==='wh:print')print()})</script>`
+<script>(function(){
+  function max(){ return Math.max(0, document.documentElement.scrollHeight - innerHeight) }
+  addEventListener('message', function(e){
+    var d = e.data
+    if (d === 'wh:print') { print(); return }
+    if (d && d.t === 'wh:scrollTo') { scrollTo(0, d.r * max()) }
+  })
+  var tick = 0
+  addEventListener('scroll', function(){
+    if (tick) return
+    tick = setTimeout(function(){
+      tick = 0
+      var m = max()
+      parent.postMessage({ t: 'wh:scrolled', r: m ? scrollY / m : 0 }, '*')
+    }, 80)
+  }, { passive: true })
+})()</script>`
 }
 
 export function downloadHtml(prep: PrepDoc) {

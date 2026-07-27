@@ -8,10 +8,11 @@ import {
   generateCode,
   sessionUrl,
 } from '../lib/session'
+import { dropLive, syncMeta } from '../lib/live'
 import type { Prep, PrepDoc, Session } from '../lib/types'
 
 /**
- * 발표본에 담을 사본. 발행과 갱신이 반드시 같은 모양을 써야 한다.
+ * 발표본에 담을 사본. 발행과 갱신이 같은 모양을 써야 한다.
  * Firestore 는 undefined 를 받지 않으므로 예전 마크다운 자료일 때만 그 두 칸을 넣는다.
  */
 function snapshotOf(prep: Prep): PrepDoc {
@@ -58,15 +59,18 @@ export default function SessionManager({
     setBusy(true)
     try {
       const code = generateCode()
+      const expiresAt = Date.now() + EXPIRY_OPTIONS[expiryIdx].ms
       await createSession(code, {
         prepId: prep.id,
         snapshot: snapshotOf(prep),
         active: true,
-        expiresAt: Date.now() + EXPIRY_OPTIONS[expiryIdx].ms,
+        expiresAt,
         note: note.trim(),
         createdBy: member!.uid,
         createdByName: member!.displayName,
       })
+      // 덧칠 통로의 규칙이 이 값을 보고 판단한다. 없으면 발표자도 그리지 못한다.
+      await syncMeta(code, { ownerUid: member!.uid, active: true, expiresAt })
       setIssued(code)
       setNote('')
     } catch (e) {
@@ -88,9 +92,17 @@ export default function SessionManager({
     await updateDocById('sessions', s.id, { snapshot: snapshotOf(prep) })
   }
 
+  /** 열고 닫기. RTDB 쪽 상태도 함께 맞춰야 이미 보고 있는 사람의 덧칠 통로가 닫힌다. */
+  async function toggle(s: Session) {
+    const active = !s.active
+    await updateDocById('sessions', s.id, { active })
+    await syncMeta(s.id, { ownerUid: s.createdBy, active, expiresAt: s.expiresAt })
+  }
+
   async function remove(s: Session) {
     if (!confirm(`코드 ${s.id} 를 삭제할까요? 링크가 즉시 막힙니다.`)) return
     await deleteDocById('sessions', s.id)
+    await dropLive(s.id)
   }
 
   return (
@@ -170,10 +182,7 @@ export default function SessionManager({
                   {copied === s.id ? '복사됨' : '링크'}
                 </button>
                 <button className="btn ghost sm" onClick={() => refresh(s)}>갱신</button>
-                <button
-                  className="btn ghost sm"
-                  onClick={() => updateDocById('sessions', s.id, { active: !s.active })}
-                >
+                <button className="btn ghost sm" onClick={() => toggle(s)}>
                   {s.active ? '닫기' : '열기'}
                 </button>
                 <button className="btn ghost sm danger" onClick={() => remove(s)}>삭제</button>
