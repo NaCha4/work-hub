@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
+import SearchModal from './SearchModal'
 import { useAuth } from '../lib/auth'
 
 const NAV: { to: string; label: string; ico: IconName }[] = [
@@ -26,6 +27,19 @@ function useTheme() {
 export default function Layout({ children }: { children: ReactNode }) {
   const { member, signOut } = useAuth()
   const { theme, toggle } = useTheme()
+  const [searching, setSearching] = useState(false)
+
+  // 검색은 어느 화면에서든 Ctrl+K 로 연다. 편집 중 텍스트 입력과는 충돌하지 않는 조합이다.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearching((s) => !s)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <div className="app">
@@ -34,6 +48,11 @@ export default function Layout({ children }: { children: ReactNode }) {
           <Icon name="brand" size={18} />
           Work Hub
         </div>
+        <button className="nav-link nav-search" onClick={() => setSearching(true)}>
+          <span className="ico"><Icon name="search" size={17} /></span>
+          검색
+          <span className="kbd">Ctrl K</span>
+        </button>
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'} className="nav-link">
             <span className="ico"><Icon name={n.ico} size={17} /></span>
@@ -66,6 +85,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </nav>
       <main className="main">{children}</main>
+      {searching && <SearchModal onClose={() => setSearching(false)} />}
     </div>
   )
 }

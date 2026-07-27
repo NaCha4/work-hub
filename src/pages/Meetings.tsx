@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import DateInput from '../components/DateInput'
 import Modal from '../components/Modal'
 import MarkdownField from '../components/MarkdownField'
@@ -33,9 +34,17 @@ const blank = (uid: string, name: string): Meeting => ({
 export default function Meetings() {
   const { member } = useAuth()
   const { items, loading, error } = useCollection<Meeting>('meetings', !!member, byDate)
+  const loc = useLocation()
   const [draft, setDraft] = useState<Meeting | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [q, setQ] = useState('')
+
+  // 통합 검색에서 넘어오면 그 메모를 펼치고 검색어를 걸어둔다.
+  useEffect(() => {
+    const s = loc.state as { q?: string; open?: string } | null
+    if (s?.q) setQ(s.q)
+    if (s?.open) setOpenId(s.open)
+  }, [loc.state])
 
   const filtered = useMemo(() => {
     const k = q.trim().toLowerCase()

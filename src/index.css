@@ -90,6 +90,31 @@ a { color: var(--accent); }
 }
 .nav-link:hover { background: var(--surface-2); color: var(--fg); }
 .nav-link.active { background: var(--accent-soft); color: var(--accent); }
+.nav-search { width: 100%; border: 0; background: none; font: inherit; cursor: pointer; text-align: left; }
+.nav-search .kbd {
+  margin-left: auto; font-size: 10.5px; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 5px; padding: 0 5px;
+}
+
+/* ---------- 통합 검색 ---------- */
+.search-hits { margin-top: 10px; max-height: 50vh; overflow-y: auto; }
+.search-hit {
+  display: flex; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: 0; border-top: 1px solid var(--border);
+  padding: 9px 4px; font: inherit; color: inherit; border-radius: 7px;
+}
+.search-hit:hover { background: var(--surface-2); }
+.search-hit .kind {
+  flex: 0 0 38px; font-size: 11px; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px;
+  text-align: center; align-self: flex-start; padding: 1px 0;
+}
+.search-hit .body { flex: 1; min-width: 0; }
+.search-hit .t { display: block; font-size: 13.5px; font-weight: 600; }
+.search-hit .s {
+  display: block; font-size: 12px; color: var(--muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .nav-link .ico { display: grid; place-items: center; width: 18px; flex: 0 0 18px; }
 
 /* 버튼·라벨 안의 아이콘은 글자와 광학적으로 맞물려야 한다. */

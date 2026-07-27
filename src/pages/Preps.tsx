@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
 import SessionManager from '../components/SessionManager'
@@ -36,6 +37,19 @@ export default function Preps() {
   const [saved, setSaved] = useState(false)
   const file = useRef<HTMLInputElement>(null)
   const frame = useRef<HTMLIFrameElement>(null)
+  const loc = useLocation()
+  const consumed = useRef(false)
+
+  // 통합 검색에서 넘어오면 그 자료를 바로 연다. 목록이 로드된 뒤 한 번만.
+  useEffect(() => {
+    const s = loc.state as { open?: string } | null
+    if (!s?.open || consumed.current || items.length === 0) return
+    const target = items.find((p) => p.id === s.open)
+    if (target) {
+      consumed.current = true
+      setEditing(target)
+    }
+  }, [loc.state, items])
 
   const preview = useMemo(
     () => (editing ? withViewerBridge(prepHtml(editing)) : ''),
