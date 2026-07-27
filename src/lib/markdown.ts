@@ -21,6 +21,15 @@ export function nowTime(): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+const DOW = ['일', '월', '화', '수', '목', '금', '토']
+
+/** 'YYYY-MM-DD' → 'YYYY-MM-DD (월)'. 일지가 무슨 요일이었는지가 자주 필요하다. */
+export function withDow(date: string): string {
+  if (!date) return ''
+  const [y, m, d] = date.split('-').map(Number)
+  return `${date} (${DOW[new Date(y, m - 1, d).getDay()]})`
+}
+
 export function formatDate(ts: number): string {
   if (!ts) return ''
   return new Date(ts).toLocaleString('ko-KR', {

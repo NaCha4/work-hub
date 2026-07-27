@@ -4,7 +4,7 @@ import Modal from '../components/Modal'
 import MarkdownField from '../components/MarkdownField'
 import { useAuth } from '../lib/auth'
 import { byDate, createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
-import { parseTags, renderMarkdown, today } from '../lib/markdown'
+import { parseTags, renderMarkdown, today, withDow } from '../lib/markdown'
 import type { Journal as JournalEntry } from '../lib/types'
 
 const blank = (author: { uid: string; name: string }) => ({
@@ -76,7 +76,7 @@ export default function Journal() {
       {filtered.map((j) => (
         <div className="card" key={j.id}>
           <div className="card-head">
-            <h3>{j.date}</h3>
+            <h3>{withDow(j.date)}</h3>
             <span className="muted" style={{ fontSize: 12 }}>{j.authorName}</span>
             <span className="spacer" />
             <button className="btn ghost sm" onClick={() => setDraft(j)}>편집</button>
