@@ -22,38 +22,38 @@ interface Item {
   eta: string
 }
 
-/**
- * 남은 시간을 사람이 쓰는 말로 바꾼다.
- * 시각이 없는 항목은 그날 끝을 기준으로 삼아야 "오늘" 이 하루 종일 유지된다.
- */
-function measure(date: string, time: string, now: number, kind: Item['kind']) {
-  const at = new Date(`${date}T${time || '23:59'}`).getTime()
-  const min = Math.round((at - now) / 60000)
-  const days = Math.round(
-    (new Date(`${date}T00:00`).getTime() - new Date(new Date(now).toDateString()).getTime()) /
-      86400000,
-  )
+/** 오늘 자정 기준으로 며칠 뒤인지. 시각이 아니라 날짜로 세야 "오늘" 이 하루 유지된다. */
+function dayDiff(date: string, now: number) {
+  const start = new Date(`${date}T00:00`).getTime()
+  return Math.round((start - new Date(new Date(now).toDateString()).getTime()) / 86400000)
+}
 
-  let level: Level = 3
-  let eta = `D-${days}`
-  if (min < 0) {
-    level = 0
-    eta = kind === '회의' ? '지남' : '기한 지남'
-  } else if (days === 0) {
-    level = 1
-    eta = min < 60 ? `${min}분 뒤` : `${Math.floor(min / 60)}시간 뒤`
-  } else if (days === 1) {
-    level = 2
-    eta = '내일'
+/** 시작을 지났으면 진행 중이다. 이미 끝난 일정은 애초에 목록에 들어오지 않는다. */
+function measureEvent(date: string, time: string, now: number) {
+  const at = new Date(`${date}T${time}`).getTime()
+  if (now >= at) return { at, level: 0 as Level, eta: '진행 중' }
+  const days = dayDiff(date, now)
+  if (days === 0) {
+    const min = Math.round((at - now) / 60000)
+    return { at, level: 1 as Level, eta: min < 60 ? `${min}분 뒤` : `${Math.floor(min / 60)}시간 뒤` }
   }
-  return { at, level, eta }
+  if (days === 1) return { at, level: 2 as Level, eta: '내일' }
+  return { at, level: 3 as Level, eta: `D-${days}` }
+}
+
+/** 마감은 시각이 없다. 그날 끝을 기준으로 세운다. */
+function measureTask(due: string, now: number) {
+  const at = new Date(`${due}T23:59`).getTime()
+  const days = dayDiff(due, now)
+  if (days < 0) return { at, level: 0 as Level, eta: '기한 지남' }
+  if (days === 0) return { at, level: 1 as Level, eta: '오늘' }
+  if (days === 1) return { at, level: 2 as Level, eta: '내일' }
+  return { at, level: 3 as Level, eta: `D-${days}` }
 }
 
 interface Props {
   events: CalendarEvent[]
   tasks: Task[]
-  /** YYYY-MM-DD */
-  today: string
   max?: number
 }
 
@@ -62,12 +62,14 @@ interface Props {
  * 여기서는 회의와 할 일 마감을 한 줄기에 섞고 임박한 순으로만 세운다.
  * 같은 것을 두 번 그리지 않으려고 형태를 일부러 다르게 잡았다.
  */
-export default function UpcomingMeetings({ events, tasks, today, max = 4 }: Props) {
+export default function UpcomingMeetings({ events, tasks, max = 4 }: Props) {
   const now = Date.now()
 
   const items: Item[] = [
     ...events
-      .filter((e) => e.date >= today)
+      // 종일 일정은 뺀다. 하루를 통째로 차지해서 시간 줄기 위에 놓을 자리가 없고,
+      // "몇 시간 뒤" 라는 이 목록의 기준과도 맞지 않는다. 달력에는 그대로 남는다.
+      .filter((e) => !e.allDay && e.endsAt > now)
       .map((e) => ({
         key: `e-${e.id}`,
         kind: '회의' as const,
@@ -76,7 +78,7 @@ export default function UpcomingMeetings({ events, tasks, today, max = 4 }: Prop
         title: e.title,
         link: e.link,
         color: e.color,
-        ...measure(e.date, e.time, now, '회의'),
+        ...measureEvent(e.date, e.time, now),
       })),
     ...tasks
       .filter((x) => x.status !== 'done' && x.due)
@@ -87,7 +89,7 @@ export default function UpcomingMeetings({ events, tasks, today, max = 4 }: Prop
         time: '',
         title: x.title,
         link: '',
-        ...measure(x.due, '', now, '마감'),
+        ...measureTask(x.due, now),
       })),
   ]
     .sort((a, b) => a.at - b.at)

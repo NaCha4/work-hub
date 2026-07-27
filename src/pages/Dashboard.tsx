@@ -245,7 +245,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <UpcomingMeetings events={cal.events} tasks={inProject} today={t} />
+      <UpcomingMeetings events={cal.events} tasks={inProject} />
 
       <MonthCalendar
         month={month}

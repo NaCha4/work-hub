@@ -24,6 +24,9 @@ export interface CalendarEvent {
   date: string
   /** HH:mm. 종일 일정이면 빈 문자열 */
   time: string
+  allDay: boolean
+  /** 끝나는 시각 (ms). 진행 중인지 이미 끝났는지 가리는 데 쓴다. */
+  endsAt: number
   link: string
   /** 구글에서 지정한 색. 일정에 색이 따로 없으면 그 캘린더의 색이다. */
   color: string
@@ -147,6 +150,14 @@ interface RawEvent {
   htmlLink?: string
   colorId?: string
   start?: { date?: string; dateTime?: string }
+  end?: { date?: string; dateTime?: string }
+}
+
+/** 종일 일정의 end.date 는 다음 날이다(끝을 포함하지 않는다). 그대로 자정으로 읽으면 맞다. */
+function endMs(end: RawEvent['end'], fallback: number) {
+  if (end?.dateTime) return new Date(end.dateTime).getTime()
+  if (end?.date) return new Date(`${end.date}T00:00`).getTime()
+  return fallback
 }
 
 function toEvent(item: RawEvent, color: string): CalendarEvent | null {
@@ -158,7 +169,15 @@ function toEvent(item: RawEvent, color: string): CalendarEvent | null {
     link: item.htmlLink ?? '',
     color,
   }
-  if (start.date) return { ...base, date: start.date, time: '' }
+  if (start.date) {
+    return {
+      ...base,
+      date: start.date,
+      time: '',
+      allDay: true,
+      endsAt: endMs(item.end, new Date(`${start.date}T23:59`).getTime()),
+    }
+  }
   if (!start.dateTime) return null
   const d = new Date(start.dateTime)
   const p = (n: number) => String(n).padStart(2, '0')
@@ -166,6 +185,9 @@ function toEvent(item: RawEvent, color: string): CalendarEvent | null {
     ...base,
     date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
     time: `${p(d.getHours())}:${p(d.getMinutes())}`,
+    allDay: false,
+    // 끝 시각이 없는 일정은 한 시간짜리로 친다. 진행 중 표시가 영영 안 꺼지는 것보다 낫다.
+    endsAt: endMs(item.end, d.getTime() + 3600_000),
   }
 }
 
