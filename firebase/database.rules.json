@@ -1,0 +1,47 @@
+{
+  "//": [
+    "발표 중 덧칠(포인터·펜)을 실시간으로 나르는 통로. 자료 자체는 여기 없다.",
+    "",
+    "Firestore 의 sessions 규칙과 같은 원칙을 따른다.",
+    "  - 쓰기는 그 세션을 만든 사람만. 비로그인 방문자는 절대 쓰지 못한다.",
+    "  - 읽기는 코드를 아는 사람이면 되지만, 살아 있고 만료 전인 세션만.",
+    "  - /sessions 자체는 읽지 못한다. 목록을 훑어 코드를 캐낼 길을 막는다.",
+    "",
+    "RTDB 규칙은 Firestore 를 읽지 못한다. 그래서 active/expiresAt 을 meta 에",
+    "복제해 두고 그것을 본다. 세션을 닫거나 만료되면 이 통로도 함께 닫힌다.",
+    "meta 는 클라이언트가 직접 읽지 못하지만, 규칙 안의 root 참조는 그 제한과",
+    "무관하게 값을 읽으므로 검사는 정상 동작한다."
+  ],
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "sessions": {
+      "$code": {
+        "meta": {
+          ".write": "auth != null && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['ownerUid', 'active', 'expiresAt']) && newData.child('ownerUid').val() === auth.uid && newData.child('active').isBoolean() && newData.child('expiresAt').isNumber()",
+          "$other": { ".validate": false }
+        },
+
+        "live": {
+          ".read": "root.child('sessions').child($code).child('meta').child('active').val() === true && root.child('sessions').child($code).child('meta').child('expiresAt').val() > now",
+          ".write": "auth != null && root.child('sessions').child($code).child('meta').child('ownerUid').val() === auth.uid",
+
+          "pointer": {
+            ".validate": "newData.hasChildren(['x', 'y']) && newData.child('x').isNumber() && newData.child('y').isNumber()"
+          },
+
+          "strokes": {
+            "$id": {
+              "//": "점 목록은 한 획당 2,000자로 자른다. 통로를 파일 저장소로 쓰지 못하게 막는다.",
+              ".validate": "newData.hasChildren(['pts']) && newData.child('pts').isString() && newData.child('pts').val().length <= 2000"
+            }
+          }
+        },
+
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
