@@ -4,6 +4,7 @@ import Icon from '../components/Icon'
 import MarkdownField from '../components/MarkdownField'
 import Modal from '../components/Modal'
 import MonthCalendar from '../components/MonthCalendar'
+import UpcomingMeetings from '../components/UpcomingMeetings'
 import { useAuth } from '../lib/auth'
 import { useCalendarEvents } from '../lib/calendar'
 import { createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
@@ -243,6 +244,8 @@ export default function Dashboard() {
           })}
         </div>
       </div>
+
+      <UpcomingMeetings events={cal.events} today={t} />
 
       <MonthCalendar
         month={month}

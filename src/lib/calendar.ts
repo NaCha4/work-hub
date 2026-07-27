@@ -224,7 +224,9 @@ async function fetchMonth(interactive: boolean, month: string): Promise<Calendar
 
   const [y, m] = month.split('-').map(Number)
   const timeMin = new Date(y, m - 1, 1).toISOString()
-  const timeMax = new Date(y, m, 1).toISOString()
+  // 달력은 이 달만 그리지만, 월말에 서 있어도 "다가오는 회의" 가 비지 않도록
+  // 다음 달까지 함께 받아둔다. 달력 칸은 이 달 날짜만 찾아 쓰므로 남는 건 무시된다.
+  const timeMax = new Date(y, m + 1, 1).toISOString()
   const query =
     `?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}` +
     // 반복 일정을 회차별로 펼쳐야 날짜 칸에 하나씩 놓을 수 있다.
