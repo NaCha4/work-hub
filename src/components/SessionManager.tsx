@@ -126,7 +126,7 @@ export default function SessionManager({
               {copied === 'link' ? '복사됨' : '링크 복사'}
             </button>
             <a className="btn sm" href={`#/s/${issued}`} target="_blank" rel="noreferrer">
-              열어보기
+              발표 시작
             </a>
           </div>
         </div>
@@ -178,6 +178,13 @@ export default function SessionManager({
                     {!s.active && ' · 닫힘'}
                   </div>
                 </div>
+                {/* 발표자도 시청자와 같은 링크를 쓴다. 만든 사람으로 알아보고
+                    덧칠 도구를 띄우므로 따로 발표자용 주소가 없다. */}
+                {s.active && !expired && (
+                  <a className="btn sm" href={`#/s/${s.id}`} target="_blank" rel="noreferrer">
+                    발표 시작
+                  </a>
+                )}
                 <button className="btn ghost sm" onClick={() => copy(sessionUrl(s.id), s.id)}>
                   {copied === s.id ? '복사됨' : '링크'}
                 </button>
