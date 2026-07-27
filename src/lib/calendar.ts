@@ -162,16 +162,10 @@ function toEvent(item: {
   }
 }
 
-async function fetchUpcoming(interactive: boolean, max: number): Promise<CalendarEvent[]> {
-  const t = await getToken(interactive)
-  const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events')
-  url.searchParams.set('timeMin', new Date().toISOString())
-  url.searchParams.set('maxResults', String(max))
-  // 반복 일정을 회차별로 펼쳐야 다음 한 건만 골라낼 수 있다.
-  url.searchParams.set('singleEvents', 'true')
-  url.searchParams.set('orderBy', 'startTime')
+const API = 'https://www.googleapis.com/calendar/v3'
 
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${t}` } })
+async function api<T>(path: string, t: string): Promise<T> {
+  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${t}` } })
   if (!res.ok) {
     // 권한이 끊겼으면 캐시한 토큰을 버려 다음 시도에서 새로 받게 한다.
     if (res.status === 401 || res.status === 403) {
@@ -180,8 +174,55 @@ async function fetchUpcoming(interactive: boolean, max: number): Promise<Calenda
     }
     throw new Error(`캘린더를 불러오지 못했습니다. (${res.status})`)
   }
-  const data = (await res.json()) as { items?: Parameters<typeof toEvent>[0][] }
-  return (data.items ?? []).map(toEvent).filter((e): e is CalendarEvent => e !== null)
+  return (await res.json()) as T
+}
+
+/**
+ * 공휴일·생일처럼 구글이 자동으로 붙여주는 캘린더는 뺀다.
+ * 회의 목록에 "성탄절" 이 끼면 쓸모가 없어진다.
+ */
+function isNoise(id: string) {
+  return id.includes('holiday@group') || id.includes('#contacts@group')
+}
+
+async function fetchUpcoming(interactive: boolean, max: number): Promise<CalendarEvent[]> {
+  const t = await getToken(interactive)
+
+  // primary 하나만 보면 조직 계정에서 흔한 공유·부 캘린더의 일정을 통째로 놓친다.
+  const list = await api<{ items?: { id?: string; accessRole?: string; deleted?: boolean }[] }>(
+    '/users/me/calendarList?maxResults=250&minAccessRole=reader',
+    t,
+  )
+  const ids = (list.items ?? [])
+    .filter((c) => c.id && !c.deleted && !isNoise(c.id))
+    .map((c) => c.id as string)
+
+  const timeMin = new Date().toISOString()
+  const query =
+    `?timeMin=${encodeURIComponent(timeMin)}&maxResults=${max}` +
+    // 반복 일정을 회차별로 펼쳐야 다음 한 건만 골라낼 수 있다.
+    `&singleEvents=true&orderBy=startTime`
+
+  // 캘린더 하나가 막혀 있어도 나머지는 보여준다.
+  const results = await Promise.allSettled(
+    ids.map((id) =>
+      api<{ items?: Parameters<typeof toEvent>[0][] }>(
+        `/calendars/${encodeURIComponent(id)}/events${query}`,
+        t,
+      ),
+    ),
+  )
+
+  const events = results
+    .flatMap((r) => (r.status === 'fulfilled' ? (r.value.items ?? []) : []))
+    .map(toEvent)
+    .filter((e): e is CalendarEvent => e !== null)
+
+  // 같은 회의가 여러 캘린더에 걸쳐 있으면 id 가 겹친다. 화면에서 두 번 보이는 것도,
+  // 리스트 key 가 충돌하는 것도 막아야 한다.
+  return [...new Map(events.map((e) => [e.id, e])).values()]
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+    .slice(0, max)
 }
 
 export type CalendarState = 'off' | 'loading' | 'ready' | 'error'
