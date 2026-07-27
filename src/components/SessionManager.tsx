@@ -8,7 +8,23 @@ import {
   generateCode,
   sessionUrl,
 } from '../lib/session'
-import type { Prep, Session } from '../lib/types'
+import type { Prep, PrepDoc, Session } from '../lib/types'
+
+/**
+ * 발표본에 담을 사본. 발행과 갱신이 반드시 같은 모양을 써야 한다.
+ * Firestore 는 undefined 를 받지 않으므로 예전 마크다운 자료일 때만 그 두 칸을 넣는다.
+ */
+function snapshotOf(prep: Prep): PrepDoc {
+  return {
+    title: prep.title,
+    subtitle: prep.subtitle,
+    date: prep.date,
+    html: prep.html ?? '',
+    tags: prep.tags,
+    authorName: prep.authorName,
+    ...(prep.content ? { content: prep.content, theme: prep.theme ?? 'light' } : {}),
+  }
+}
 
 /** 준비자료 하나에 대한 발표 세션(공개 링크) 발행·관리 창. */
 export default function SessionManager({
@@ -44,16 +60,7 @@ export default function SessionManager({
       const code = generateCode()
       await createSession(code, {
         prepId: prep.id,
-        snapshot: {
-          title: prep.title,
-          subtitle: prep.subtitle,
-          date: prep.date,
-          html: prep.html ?? '',
-          tags: prep.tags,
-          authorName: prep.authorName,
-          // 예전 마크다운 자료를 공유할 때만 함께 넣는다. Firestore 는 undefined 를 받지 않는다.
-          ...(prep.content ? { content: prep.content, theme: prep.theme ?? 'light' } : {}),
-        },
+        snapshot: snapshotOf(prep),
         active: true,
         expiresAt: Date.now() + EXPIRY_OPTIONS[expiryIdx].ms,
         note: note.trim(),
@@ -78,17 +85,7 @@ export default function SessionManager({
   /** 현재 준비자료 내용으로 발표본을 다시 찍어낸다. 코드와 링크는 그대로 유지된다. */
   async function refresh(s: Session) {
     if (!confirm('지금 준비자료 내용으로 이 세션의 자료를 갱신할까요?')) return
-    await updateDocById('sessions', s.id, {
-      snapshot: {
-        title: prep.title,
-        subtitle: prep.subtitle,
-        date: prep.date,
-        content: prep.content,
-        theme: prep.theme,
-        tags: prep.tags,
-        authorName: prep.authorName,
-      },
-    })
+    await updateDocById('sessions', s.id, { snapshot: snapshotOf(prep) })
   }
 
   async function remove(s: Session) {
