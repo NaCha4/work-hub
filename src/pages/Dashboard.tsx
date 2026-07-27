@@ -71,6 +71,7 @@ export default function Dashboard() {
     time: e.time,
     title: e.title,
     link: e.link,
+    color: e.color,
   }))
 
   function shiftMonth(delta: number) {

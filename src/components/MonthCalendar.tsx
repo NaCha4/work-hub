@@ -15,6 +15,8 @@ export interface CalendarItem {
   title: string
   /** 구글 캘린더 일정이면 원본 링크, 회의록이면 빈 문자열 */
   link: string
+  /** 구글에서 지정한 색. 없으면 기본 강조색으로 둔다. */
+  color?: string
 }
 
 interface Props {
@@ -38,9 +40,12 @@ function Entry({ item, onOpen }: { item: CalendarItem; onOpen?: () => void }) {
     </>
   )
   const cls = `cal-ev${item.link ? '' : ' own'}`
+  // 구글에서 정한 색을 그대로 쓴다. 캘린더 화면과 색이 다르면 같은 일정을 못 알아본다.
+  const style = item.color ? { borderLeftColor: item.color } : undefined
   return item.link ? (
     <a
       className={cls}
+      style={style}
       href={item.link}
       target="_blank"
       rel="noreferrer"
@@ -50,7 +55,7 @@ function Entry({ item, onOpen }: { item: CalendarItem; onOpen?: () => void }) {
       {body}
     </a>
   ) : (
-    <span className={cls} title={item.title} onClick={onOpen}>{body}</span>
+    <span className={cls} style={style} title={item.title} onClick={onOpen}>{body}</span>
   )
 }
 

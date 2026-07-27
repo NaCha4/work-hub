@@ -25,6 +25,8 @@ export interface CalendarEvent {
   /** HH:mm. 종일 일정이면 빈 문자열 */
   time: string
   link: string
+  /** 구글에서 지정한 색. 일정에 색이 따로 없으면 그 캘린더의 색이다. */
+  color: string
 }
 
 interface TokenResponse {
@@ -139,27 +141,49 @@ async function getToken(interactive: boolean): Promise<string> {
   }
 }
 
-function toEvent(item: {
+interface RawEvent {
   id?: string
   summary?: string
   htmlLink?: string
+  colorId?: string
   start?: { date?: string; dateTime?: string }
-}): CalendarEvent | null {
+}
+
+function toEvent(item: RawEvent, color: string): CalendarEvent | null {
   const start = item.start
   if (!start) return null
-  if (start.date) {
-    return { id: item.id ?? '', title: item.summary ?? '(제목 없음)', date: start.date, time: '', link: item.htmlLink ?? '' }
+  const base = {
+    id: item.id ?? '',
+    title: item.summary ?? '(제목 없음)',
+    link: item.htmlLink ?? '',
+    color,
   }
+  if (start.date) return { ...base, date: start.date, time: '' }
   if (!start.dateTime) return null
   const d = new Date(start.dateTime)
   const p = (n: number) => String(n).padStart(2, '0')
   return {
-    id: item.id ?? '',
-    title: item.summary ?? '(제목 없음)',
+    ...base,
     date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
     time: `${p(d.getHours())}:${p(d.getMinutes())}`,
-    link: item.htmlLink ?? '',
   }
+}
+
+/** colorId → 색 표. 좀처럼 바뀌지 않으므로 한 번만 받아 들고 있는다. */
+let eventColors: Record<string, string> | null = null
+
+async function loadEventColors(t: string) {
+  if (eventColors) return eventColors
+  try {
+    const res = await api<{ event?: Record<string, { background?: string }> }>('/colors', t)
+    eventColors = Object.fromEntries(
+      Object.entries(res.event ?? {}).map(([k, v]) => [k, v.background ?? '']),
+    )
+  } catch {
+    // 색을 못 받아도 일정은 보여야 한다. 캘린더 색으로 넘어간다.
+    eventColors = {}
+  }
+  return eventColors
 }
 
 const API = 'https://www.googleapis.com/calendar/v3'
@@ -190,13 +214,13 @@ async function fetchMonth(interactive: boolean, month: string): Promise<Calendar
   const t = await getToken(interactive)
 
   // primary 하나만 보면 조직 계정에서 흔한 공유·부 캘린더의 일정을 통째로 놓친다.
-  const list = await api<{ items?: { id?: string; accessRole?: string; deleted?: boolean }[] }>(
-    '/users/me/calendarList?maxResults=250&minAccessRole=reader',
-    t,
-  )
-  const ids = (list.items ?? [])
+  const list = await api<{
+    items?: { id?: string; deleted?: boolean; backgroundColor?: string }[]
+  }>('/users/me/calendarList?maxResults=250&minAccessRole=reader', t)
+  const cals = (list.items ?? [])
     .filter((c) => c.id && !c.deleted && !isNoise(c.id))
-    .map((c) => c.id as string)
+    .map((c) => ({ id: c.id as string, color: c.backgroundColor ?? '' }))
+  const colors = await loadEventColors(t)
 
   const [y, m] = month.split('-').map(Number)
   const timeMin = new Date(y, m - 1, 1).toISOString()
@@ -208,17 +232,15 @@ async function fetchMonth(interactive: boolean, month: string): Promise<Calendar
 
   // 캘린더 하나가 막혀 있어도 나머지는 보여준다.
   const results = await Promise.allSettled(
-    ids.map((id) =>
-      api<{ items?: Parameters<typeof toEvent>[0][] }>(
-        `/calendars/${encodeURIComponent(id)}/events${query}`,
-        t,
-      ),
+    cals.map((c) =>
+      api<{ items?: RawEvent[] }>(`/calendars/${encodeURIComponent(c.id)}/events${query}`, t)
+        // 일정에 색을 따로 주지 않았으면 그 캘린더의 색을 쓴다. 구글 화면과 같은 규칙이다.
+        .then((r) => (r.items ?? []).map((it) => toEvent(it, colors[it.colorId ?? ''] || c.color))),
     ),
   )
 
   const events = results
-    .flatMap((r) => (r.status === 'fulfilled' ? (r.value.items ?? []) : []))
-    .map(toEvent)
+    .flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
     .filter((e): e is CalendarEvent => e !== null)
 
   // 같은 회의가 여러 캘린더에 걸쳐 있으면 id 가 겹친다. 화면에서 두 번 보이는 것도,
