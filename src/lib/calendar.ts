@@ -58,7 +58,11 @@ let token = ''
 let expiresAt = 0
 let client: TokenClient | null = null
 let pending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null
+let inflight: Promise<string> | null = null
 let scriptLoad: Promise<void> | null = null
+
+/** GIS 가 콜백을 영영 부르지 않는 경우가 있다. 그대로 두면 화면이 "확인 중" 에 굳는다. */
+const TIMEOUT_MS = 20_000
 
 /** Google Identity Services 스크립트. npm 패키지가 없어 태그로 넣는다. */
 function loadScript() {
@@ -91,6 +95,9 @@ function settle(result: { token: string } | { error: string }) {
  */
 async function getToken(interactive: boolean): Promise<string> {
   if (token && Date.now() < expiresAt) return token
+  // 창 포커스마다 조용한 갱신이 겹칠 수 있다. 이미 떠 있는 요청이 있으면 함께 기다린다.
+  if (inflight && !interactive) return inflight
+
   await loadScript()
   const oauth2 = window.google?.accounts.oauth2
   if (!oauth2) throw new Error('구글 인증 스크립트를 불러오지 못했습니다.')
@@ -108,10 +115,28 @@ async function getToken(interactive: boolean): Promise<string> {
     error_callback: (err) => settle({ error: err.type ?? '인증 창이 열리지 않았습니다.' }),
   })
 
-  return new Promise<string>((resolve, reject) => {
+  // 앞선 요청이 남아 있으면 먼저 정리한다. 그대로 덮어쓰면 그 약속이 영영 안 풀린다.
+  settle({ error: '새 요청으로 대체되었습니다.' })
+
+  inflight = new Promise<string>((resolve, reject) => {
     pending = { resolve, reject }
+    const timer = setTimeout(
+      () => settle({ error: '구글 인증이 응답하지 않았습니다. 연동 버튼을 눌러 다시 시도해 주세요.' }),
+      TIMEOUT_MS,
+    )
+    const done = () => clearTimeout(timer)
+    pending = {
+      resolve: (t) => { done(); resolve(t) },
+      reject: (e) => { done(); reject(e) },
+    }
     client!.requestAccessToken({ prompt: interactive ? 'consent' : '' })
   })
+
+  try {
+    return await inflight
+  } finally {
+    inflight = null
+  }
 }
 
 function toEvent(item: {

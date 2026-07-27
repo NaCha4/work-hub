@@ -236,11 +236,18 @@ export default function Dashboard() {
         <div className="card-head">
           <h3>다가오는 회의</h3>
           <span className="spacer" />
-          {cal.state === 'loading' && <span className="muted" style={{ fontSize: 12 }}>캘린더 확인 중…</span>}
+          {/* 네 상태가 전부 화면에 드러나야 한다. 조용히 아무것도 안 뜨면
+              연동이 꺼진 것인지 일정이 없는 것인지 구분할 방법이 없다. */}
+          {cal.state === 'off' && <span className="cal-note">캘린더 연동 꺼짐</span>}
+          {cal.state === 'loading' && <span className="cal-note">캘린더 확인 중…</span>}
+          {cal.state === 'ready' && cal.events.length === 0 && (
+            <span className="cal-note">캘린더에 예정된 일정 없음</span>
+          )}
           {cal.state === 'error' && (
-            <button className="btn ghost sm" onClick={cal.connect} title={cal.error}>
-              구글 캘린더 연동
-            </button>
+            <>
+              <span className="cal-note">{cal.error}</span>
+              <button className="btn ghost sm" onClick={cal.connect}>연동</button>
+            </>
           )}
         </div>
         {agenda.length === 0 && <p className="muted">예정된 회의가 없습니다.</p>}
