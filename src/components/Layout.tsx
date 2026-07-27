@@ -48,17 +48,18 @@ export default function Layout({ children }: { children: ReactNode }) {
           <Icon name="brand" size={18} />
           Work Hub
         </div>
-        <button className="nav-link nav-search" onClick={() => setSearching(true)}>
-          <span className="ico"><Icon name="search" size={17} /></span>
-          검색
-          <span className="kbd">Ctrl K</span>
-        </button>
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'} className="nav-link">
             <span className="ico"><Icon name={n.ico} size={17} /></span>
             {n.label}
           </NavLink>
         ))}
+        {/* 메뉴 맨 아래에 둔다. 브랜드 바로 밑에 두면 대시보드를 누르려다 자꾸 잘못 눌린다. */}
+        <button className="nav-link nav-search" onClick={() => setSearching(true)}>
+          <span className="ico"><Icon name="search" size={17} /></span>
+          검색
+          <span className="kbd">Ctrl K</span>
+        </button>
         <div className="sidebar-foot">
           <div className="me">
             {member?.photoURL ? (
