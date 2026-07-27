@@ -223,27 +223,46 @@ a { color: var(--accent); }
   background: var(--surface-2); color: var(--muted);
   font-size: 11.5px; font-weight: 600; text-align: center; padding: 5px 0;
 }
+.cal-dow.weekend { color: var(--fg); }
 .cal-cell {
-  background: var(--surface); min-height: 84px; padding: 4px 5px 6px;
-  display: flex; flex-direction: column; gap: 2px; overflow: hidden;
+  background: var(--surface); min-height: 98px; padding: 5px 5px 7px;
+  display: flex; flex-direction: column; gap: 1px; overflow: hidden;
 }
+/* 주말은 색이 아니라 아주 옅은 바탕으로 가른다. 색을 더하면 일정 색과 싸운다. */
+.cal-cell.weekend { background: var(--bg); }
 .cal-cell.empty { background: var(--surface-2); }
+.cal-cell.has { cursor: pointer; }
 .cal-cell.today { box-shadow: inset 0 0 0 2px var(--accent); }
-.cal-day { font-size: 11.5px; color: var(--muted); }
+.cal-day { font-size: 11.5px; color: var(--muted); margin-bottom: 2px; }
 .cal-cell.today .cal-day { color: var(--accent); font-weight: 700; }
-/* 제목이 길어도 칸 폭을 밀지 않도록 한 줄로 자른다. 전체는 title 로 뜬다. */
+
+/* 배경을 통째로 칠하지 않고 왼쪽 막대로만 출처를 나눈다. 칸마다 색면이 깔리면
+   글자보다 색이 먼저 읽혀서 훑어보기가 어려워진다. */
 .cal-ev {
-  font-size: 11.5px; line-height: 1.45; border-radius: 4px; padding: 1px 4px;
-  background: var(--accent-soft); color: var(--accent); text-decoration: none;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex; gap: 5px; align-items: baseline;
+  font-size: 11.5px; line-height: 1.5; padding: 1px 3px 1px 5px;
+  border-left: 2px solid var(--accent); border-radius: 0 3px 3px 0;
+  color: var(--fg); text-decoration: none; overflow: hidden;
 }
-.cal-ev:hover { filter: brightness(0.96); }
-.cal-ev.own { background: var(--surface-2); color: var(--fg); }
-.cal-more { font-size: 11px; color: var(--muted); padding-left: 4px; }
+.cal-ev.own { border-left-color: var(--ok); }
+.cal-ev:hover { background: var(--surface-2); }
+/* 시각 칸 너비를 고정해야 제목이 세로로 맞아 눈이 한 줄로 내려간다. */
+.cal-ev .tm { flex: 0 0 30px; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cal-ev .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-more { font-size: 10.5px; color: var(--muted); padding-left: 7px; }
+
+.day-row {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 7px 0; border-top: 1px solid var(--border);
+}
+.day-row .tm { flex: 0 0 40px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.day-row .spacer { flex: 1; }
+.day-row .src { font-size: 11px; color: var(--muted); }
 
 @media (max-width: 720px) {
-  .cal-cell { min-height: 62px; }
+  .cal-cell { min-height: 70px; }
   .cal-ev { font-size: 10.5px; }
+  .cal-ev .tm { flex-basis: 26px; }
 }
 
 /* ---------- markdown preview ---------- */

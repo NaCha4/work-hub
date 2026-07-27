@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import Modal from './Modal'
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 
-/** 한 칸에 이만큼만 보이고 나머지는 숫자로 줄인다. 칸 높이가 들쭉날쭉해지는 것을 막는다. */
+/** 한 칸에 이만큼만 놓고 나머지는 하루 보기로 넘긴다. 칸 높이가 흔들리면 달력이 무너진다. */
 const PER_CELL = 3
 
 export interface CalendarItem {
@@ -28,7 +29,33 @@ interface Props {
   status?: ReactNode
 }
 
+/** 시각 칸을 항상 같은 너비로 두어야 제목이 세로로 정렬돼 훑어보기 쉽다. */
+function Entry({ item, onOpen }: { item: CalendarItem; onOpen?: () => void }) {
+  const body = (
+    <>
+      <span className="tm">{item.time || '종일'}</span>
+      <span className="tt">{item.title}</span>
+    </>
+  )
+  const cls = `cal-ev${item.link ? '' : ' own'}`
+  return item.link ? (
+    <a
+      className={cls}
+      href={item.link}
+      target="_blank"
+      rel="noreferrer"
+      title={item.title}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {body}
+    </a>
+  ) : (
+    <span className={cls} title={item.title} onClick={onOpen}>{body}</span>
+  )
+}
+
 export default function MonthCalendar({ month, today, items, onShift, onToday, status }: Props) {
+  const [day, setDay] = useState<string | null>(null)
   const [y, m] = month.split('-').map(Number)
   const startDow = new Date(y, m - 1, 1).getDay()
   const lastDate = new Date(y, m, 0).getDate()
@@ -48,6 +75,7 @@ export default function MonthCalendar({ month, today, items, onShift, onToday, s
   while (cells.length % 7 !== 0) cells.push(null)
 
   const p = (n: number) => String(n).padStart(2, '0')
+  const dayItems = day ? (byDate.get(day) ?? []) : []
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
@@ -61,31 +89,55 @@ export default function MonthCalendar({ month, today, items, onShift, onToday, s
       </div>
 
       <div className="cal-grid">
-        {DOW.map((d) => <div className="cal-dow" key={d}>{d}</div>)}
-        {cells.map((day, i) => {
-          if (day === null) return <div className="cal-cell empty" key={`b${i}`} />
-          const date = `${y}-${p(m)}-${p(day)}`
-          const list = byDate.get(date) ?? []
+        {DOW.map((d, i) => (
+          <div className={`cal-dow${i === 0 || i === 6 ? ' weekend' : ''}`} key={d}>{d}</div>
+        ))}
+        {cells.map((date, i) => {
+          if (date === null) return <div className="cal-cell empty" key={`b${i}`} />
+          const ymd = `${y}-${p(m)}-${p(date)}`
+          const list = byDate.get(ymd) ?? []
+          const dow = i % 7
+          const cls = [
+            'cal-cell',
+            dow === 0 || dow === 6 ? 'weekend' : '',
+            ymd === today ? 'today' : '',
+            list.length > 0 ? 'has' : '',
+          ]
           return (
-            <div className={`cal-cell${date === today ? ' today' : ''}`} key={date}>
-              <div className="cal-day">{day}</div>
-              {list.slice(0, PER_CELL).map((it) => {
-                const label = it.time ? `${it.time} ${it.title}` : it.title
-                return it.link ? (
-                  <a className="cal-ev" key={it.key} href={it.link} target="_blank" rel="noreferrer" title={label}>
-                    {label}
-                  </a>
-                ) : (
-                  <span className="cal-ev own" key={it.key} title={label}>{label}</span>
-                )
-              })}
+            <div
+              className={cls.filter(Boolean).join(' ')}
+              key={ymd}
+              onClick={() => list.length > 0 && setDay(ymd)}
+            >
+              <div className="cal-day">{date}</div>
+              {list.slice(0, PER_CELL).map((it) => (
+                <Entry key={it.key} item={it} onOpen={() => setDay(ymd)} />
+              ))}
               {list.length > PER_CELL && (
-                <span className="cal-more">+{list.length - PER_CELL}</span>
+                <span className="cal-more">+{list.length - PER_CELL}건 더</span>
               )}
             </div>
           )
         })}
       </div>
+
+      {day && (
+        <Modal title={`${Number(day.slice(5, 7))}월 ${Number(day.slice(8))}일`} onClose={() => setDay(null)}>
+          {dayItems.length === 0 && <p className="muted">일정이 없습니다.</p>}
+          {dayItems.map((it) => (
+            <div className="day-row" key={it.key}>
+              <span className="tm">{it.time || '종일'}</span>
+              {it.link ? (
+                <a href={it.link} target="_blank" rel="noreferrer">{it.title}</a>
+              ) : (
+                <span>{it.title}</span>
+              )}
+              <span className="spacer" />
+              <span className="src">{it.link ? '구글 캘린더' : '회의록'}</span>
+            </div>
+          ))}
+        </Modal>
+      )}
     </div>
   )
 }
