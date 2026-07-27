@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [project, setProject] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<TaskStatus | null>(null)
+  const [doneOpen, setDoneOpen] = useState(false)
 
   const t = today()
   const projects = useMemo(
@@ -187,6 +188,8 @@ export default function Dashboard() {
         <div className="board">
           {STATUSES.map((col) => {
             const list = colTasks(col)
+            // 완료는 계속 쌓이기만 한다. 접어두어도 칸 자체는 남아 드래그로 완료 처리된다.
+            const folded = col === 'done' && !doneOpen
             return (
               <div
                 key={col}
@@ -197,9 +200,15 @@ export default function Dashboard() {
               >
                 <h4>
                   <span>{TASK_STATUS_LABEL[col]}</span>
-                  <span>{list.length}</span>
+                  {col === 'done' ? (
+                    <button className="col-fold" onClick={() => setDoneOpen((o) => !o)}>
+                      {list.length} {folded ? '펼치기' : '접기'}
+                    </button>
+                  ) : (
+                    <span>{list.length}</span>
+                  )}
                 </h4>
-                {list.map((x) => (
+                {(folded ? [] : list).map((x) => (
                   <div
                     className={`task-card${dragId === x.id ? ' dragging' : ''}`}
                     key={x.id}
