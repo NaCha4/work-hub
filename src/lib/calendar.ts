@@ -185,7 +185,8 @@ function isNoise(id: string) {
   return id.includes('holiday@group') || id.includes('#contacts@group')
 }
 
-async function fetchUpcoming(interactive: boolean, max: number): Promise<CalendarEvent[]> {
+/** month 는 'YYYY-MM'. 그 달 1일 0시부터 다음 달 1일 0시까지를 본다. */
+async function fetchMonth(interactive: boolean, month: string): Promise<CalendarEvent[]> {
   const t = await getToken(interactive)
 
   // primary 하나만 보면 조직 계정에서 흔한 공유·부 캘린더의 일정을 통째로 놓친다.
@@ -197,11 +198,13 @@ async function fetchUpcoming(interactive: boolean, max: number): Promise<Calenda
     .filter((c) => c.id && !c.deleted && !isNoise(c.id))
     .map((c) => c.id as string)
 
-  const timeMin = new Date().toISOString()
+  const [y, m] = month.split('-').map(Number)
+  const timeMin = new Date(y, m - 1, 1).toISOString()
+  const timeMax = new Date(y, m, 1).toISOString()
   const query =
-    `?timeMin=${encodeURIComponent(timeMin)}&maxResults=${max}` +
-    // 반복 일정을 회차별로 펼쳐야 다음 한 건만 골라낼 수 있다.
-    `&singleEvents=true&orderBy=startTime`
+    `?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}` +
+    // 반복 일정을 회차별로 펼쳐야 날짜 칸에 하나씩 놓을 수 있다.
+    `&maxResults=250&singleEvents=true&orderBy=startTime`
 
   // 캘린더 하나가 막혀 있어도 나머지는 보여준다.
   const results = await Promise.allSettled(
@@ -220,14 +223,15 @@ async function fetchUpcoming(interactive: boolean, max: number): Promise<Calenda
 
   // 같은 회의가 여러 캘린더에 걸쳐 있으면 id 가 겹친다. 화면에서 두 번 보이는 것도,
   // 리스트 key 가 충돌하는 것도 막아야 한다.
-  return [...new Map(events.map((e) => [e.id, e])).values()]
-    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-    .slice(0, max)
+  return [...new Map(events.map((e) => [e.id, e])).values()].sort((a, b) =>
+    `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
+  )
 }
 
 export type CalendarState = 'off' | 'loading' | 'ready' | 'error'
 
-export function useCalendarEvents(max = 10) {
+/** month 는 'YYYY-MM'. 달을 넘기면 그 달을 다시 받아온다. */
+export function useCalendarEvents(month: string) {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [state, setState] = useState<CalendarState>(calendarConfigured ? 'loading' : 'off')
   const [error, setError] = useState('')
@@ -237,7 +241,7 @@ export function useCalendarEvents(max = 10) {
       if (!calendarConfigured) return
       setState('loading')
       try {
-        setEvents(await fetchUpcoming(interactive, max))
+        setEvents(await fetchMonth(interactive, month))
         setError('')
         setState('ready')
       } catch (e) {
@@ -245,7 +249,7 @@ export function useCalendarEvents(max = 10) {
         setState('error')
       }
     },
-    [max],
+    [month],
   )
 
   useEffect(() => {

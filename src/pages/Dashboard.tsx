@@ -3,6 +3,7 @@ import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
 import MarkdownField from '../components/MarkdownField'
 import Modal from '../components/Modal'
+import MonthCalendar from '../components/MonthCalendar'
 import { useAuth } from '../lib/auth'
 import { useCalendarEvents } from '../lib/calendar'
 import { createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
@@ -49,7 +50,8 @@ export default function Dashboard() {
   const { items: tasks, error } = useCollection<Task>('tasks', enabled)
   const { items: journals } = useCollection<Journal>('journals', enabled)
   const { items: meetings } = useCollection<Meeting>('meetings', enabled)
-  const cal = useCalendarEvents()
+  const [month, setMonth] = useState(() => today().slice(0, 7))
+  const cal = useCalendarEvents(month)
   const [draft, setDraft] = useState<Task | null>(null)
   const [project, setProject] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
@@ -62,16 +64,20 @@ export default function Dashboard() {
   )
   const inProject = tasks.filter((x) => !project || x.project === project)
   const open = inProject.filter((x) => x.status !== 'done')
-  // 회의록의 예정 회의와 구글 캘린더 일정을 한 줄기로 세운다. 캘린더 쪽은
-  // 저장하지 않고 화면에서만 합치므로, 연동이 꺼져 있으면 회의록만 남는다.
+  // 회의록과 구글 캘린더 일정을 한 달력 위에 얹는다. 캘린더 쪽은 저장하지 않고
+  // 화면에서만 합치므로, 연동이 꺼져 있으면 회의록만 남는다.
   const agenda = [
     ...meetings
-      .filter((m) => m.date >= t)
+      .filter((m) => m.date.startsWith(month))
       .map((m) => ({ key: m.id, date: m.date, time: m.time, title: m.title, link: '' })),
     ...cal.events.map((e) => ({ key: `g-${e.id}`, date: e.date, time: e.time, title: e.title, link: e.link })),
-  ]
-    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-    .slice(0, 8)
+  ].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+
+  function shiftMonth(delta: number) {
+    const [y, m] = month.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
 
   // 상태로 나누지 않고 한 줄로 세운다. 순서는 order 가 정하고 드래그로 바꾼다.
   const ordered = [...open].sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
@@ -232,37 +238,30 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-head">
-          <h3>다가오는 회의</h3>
-          <span className="spacer" />
-          {/* 네 상태가 전부 화면에 드러나야 한다. 조용히 아무것도 안 뜨면
-              연동이 꺼진 것인지 일정이 없는 것인지 구분할 방법이 없다. */}
-          {cal.state === 'off' && <span className="cal-note">캘린더 연동 꺼짐</span>}
-          {cal.state === 'loading' && <span className="cal-note">캘린더 확인 중…</span>}
-          {cal.state === 'ready' && cal.events.length === 0 && (
-            <span className="cal-note">캘린더에 예정된 일정 없음</span>
-          )}
-          {cal.state === 'error' && (
-            <>
-              <span className="cal-note">{cal.error}</span>
-              <button className="btn ghost sm" onClick={cal.connect}>연동</button>
-            </>
-          )}
-        </div>
-        {agenda.length === 0 && <p className="muted">예정된 회의가 없습니다.</p>}
-        {agenda.map((it) => (
-          <div key={it.key} className="agenda-row">
-            <span className="muted when">{it.date.slice(5)} {it.time || '종일'}</span>
-            {it.link ? (
-              <a className="text-link" href={it.link} target="_blank" rel="noreferrer">{it.title}</a>
-            ) : (
-              <span>{it.title}</span>
+      <MonthCalendar
+        month={month}
+        today={t}
+        items={agenda}
+        onShift={shiftMonth}
+        onToday={() => setMonth(t.slice(0, 7))}
+        status={
+          /* 네 상태가 전부 화면에 드러나야 한다. 조용히 아무것도 안 뜨면
+             연동이 꺼진 것인지 일정이 없는 것인지 구분할 방법이 없다. */
+          <>
+            {cal.state === 'off' && <span className="cal-note">캘린더 연동 꺼짐</span>}
+            {cal.state === 'loading' && <span className="cal-note">캘린더 확인 중…</span>}
+            {cal.state === 'ready' && cal.events.length === 0 && (
+              <span className="cal-note">이 달 캘린더 일정 없음</span>
             )}
-            {it.link && <Icon name="calendar" size={12} />}
-          </div>
-        ))}
-      </div>
+            {cal.state === 'error' && (
+              <>
+                <span className="cal-note">{cal.error}</span>
+                <button className="btn ghost sm" onClick={cal.connect}>연동</button>
+              </>
+            )}
+          </>
+        }
+      />
 
       {draft && (
         <Modal
