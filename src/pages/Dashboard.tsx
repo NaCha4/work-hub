@@ -55,7 +55,7 @@ export default function Dashboard() {
   const [draft, setDraft] = useState<Task | null>(null)
   const [project, setProject] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
-  const [overId, setOverId] = useState<string | null>(null)
+  const [overCol, setOverCol] = useState<TaskStatus | null>(null)
 
   const t = today()
   const projects = useMemo(
@@ -79,16 +79,8 @@ export default function Dashboard() {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  // 상태로 나누지 않고 한 줄로 세운다. 순서는 order 가 정하고 드래그로 바꾼다.
-  const ordered = [...open].sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
-  const finished = inProject
-    .filter((x) => x.status === 'done')
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-
-  /** 체크 한 번으로 완료·되돌리기. 목록을 벗어나지 않고 처리한다. */
-  async function toggleDone(x: Task) {
-    await updateDocById('tasks', x.id, { status: x.status === 'done' ? 'todo' : 'done' })
-  }
+  const colTasks = (status: TaskStatus) =>
+    inProject.filter((x) => x.status === status).sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
 
   async function save() {
     if (!draft) return
@@ -104,69 +96,34 @@ export default function Dashboard() {
     await deleteDocById('tasks', x.id)
   }
 
-  /**
-   * 놓인 자리의 앞뒤 order 사이 값을 준다. 나머지 카드의 order 는 건드리지 않으므로
-   * 순서를 바꿔도 쓰기는 한 번이다.
-   */
-  async function dropOn(targetId: string) {
+  /** 칸의 빈 곳에 놓으면 그 칸 맨 아래로 간다. */
+  async function dropOnColumn(status: TaskStatus) {
     const id = dragId
     setDragId(null)
-    setOverId(null)
-    if (!id || id === targetId) return
-    const from = ordered.findIndex((x) => x.id === id)
-    const to = ordered.findIndex((x) => x.id === targetId)
-    if (from < 0 || to < 0) return
-    const rest = ordered.filter((x) => x.id !== id)
-    // 아래로 끌었으면 target 다음 자리, 위로 끌었으면 target 앞자리다.
-    const at = rest.findIndex((x) => x.id === targetId) + (from < to ? 1 : 0)
-    const above = at === 0 ? (rest[0].order ?? 0) + 2048 : (rest[at - 1].order ?? 0)
-    const below =
-      at >= rest.length ? (rest[rest.length - 1].order ?? 0) - 2048 : (rest[at].order ?? 0)
-    await updateDocById('tasks', id, { order: (above + below) / 2 })
+    setOverCol(null)
+    if (!id) return
+    const rest = colTasks(status).filter((x) => x.id !== id)
+    const order = rest.length ? (rest[rest.length - 1].order ?? 0) - 2048 : Date.now()
+    await updateDocById('tasks', id, { status, order })
   }
 
-  function row(x: Task, movable: boolean) {
-    const over = movable && !!dragId && dragId !== x.id && overId === x.id
-    const after =
-      over && ordered.findIndex((y) => y.id === dragId) < ordered.findIndex((y) => y.id === x.id)
-    const cls = [
-      'task-row',
-      movable ? 'movable' : 'dim',
-      dragId === x.id ? 'dragging' : '',
-      over ? (after ? 'drop-after' : 'drop-before') : '',
-    ]
-    return (
-      <div
-        key={x.id}
-        className={cls.filter(Boolean).join(' ')}
-        draggable={movable}
-        onClick={() => setDraft(x)}
-        onDragStart={() => setDragId(x.id)}
-        onDragEnd={() => { setDragId(null); setOverId(null) }}
-        onDragOver={movable ? (e) => { e.preventDefault(); setOverId(x.id) } : undefined}
-        onDrop={movable ? (e) => { e.preventDefault(); void dropOn(x.id) } : undefined}
-      >
-        <input
-          type="checkbox"
-          checked={x.status === 'done'}
-          onClick={(e) => e.stopPropagation()}
-          onChange={() => void toggleDone(x)}
-          aria-label={`${x.title} 완료`}
-        />
-        <span className={`chip status-${x.status}`}>{TASK_STATUS_LABEL[x.status]}</span>
-        <span className="t">{x.title}</span>
-        {x.priority !== 'normal' && (
-          <span className={`sub prio-${x.priority}`}>{TASK_PRIORITY_LABEL[x.priority]}</span>
-        )}
-        {x.project && <span className="sub muted">{x.project}</span>}
-        {x.due && (
-          <span className={`sub due ${x.due < t && x.status !== 'done' ? 'overdue' : 'muted'}`}>
-            <Icon name="calendar" size={12} />
-            {x.due.slice(5)}
-          </span>
-        )}
-      </div>
-    )
+  /**
+   * 카드 위에 놓으면 그 카드 앞자리에 끼워 넣는다. 앞뒤 order 사이 값을 주므로
+   * 나머지 카드는 건드리지 않고 쓰기도 한 번이다.
+   */
+  async function dropOnCard(target: Task) {
+    const id = dragId
+    setDragId(null)
+    setOverCol(null)
+    if (!id || id === target.id) return
+    const rest = colTasks(target.status).filter((x) => x.id !== id)
+    const at = rest.findIndex((x) => x.id === target.id)
+    if (at < 0) return
+    const above = at === 0 ? (target.order ?? 0) + 2048 : (rest[at - 1].order ?? 0)
+    await updateDocById('tasks', id, {
+      status: target.status,
+      order: (above + (target.order ?? 0)) / 2,
+    })
   }
 
   /** 최근 7일 일지를 주간 보고 초안으로 합친다. */
@@ -208,7 +165,7 @@ export default function Dashboard() {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-head">
           <h3>할 일</h3>
-          <span className="muted" style={{ fontSize: 12 }}>{ordered.length}</span>
+          <span className="muted" style={{ fontSize: 12 }}>{open.length}</span>
           <span className="spacer" />
           <select
             className="select"
@@ -226,16 +183,55 @@ export default function Dashboard() {
             + 할 일
           </button>
         </div>
-        {ordered.length === 0 && <p className="muted">남은 할 일이 없습니다.</p>}
-        {ordered.map((x) => row(x, true))}
-
-        {/* 완료가 쌓이면 화면이 한없이 길어진다. 기본은 접어 두고 필요할 때만 편다. */}
-        {finished.length > 0 && (
-          <details className="done-fold">
-            <summary>완료 {finished.length}</summary>
-            {finished.map((x) => row(x, false))}
-          </details>
-        )}
+        <p className="board-hint">카드를 다른 칸으로 끌어다 놓으면 상태가 바뀝니다. 카드를 누르면 편집합니다.</p>
+        <div className="board">
+          {STATUSES.map((col) => {
+            const list = colTasks(col)
+            return (
+              <div
+                key={col}
+                className={`board-col${overCol === col ? ' drop' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); setOverCol(col) }}
+                onDragLeave={() => setOverCol((c) => (c === col ? null : c))}
+                onDrop={(e) => { e.preventDefault(); void dropOnColumn(col) }}
+              >
+                <h4>
+                  <span>{TASK_STATUS_LABEL[col]}</span>
+                  <span>{list.length}</span>
+                </h4>
+                {list.map((x) => (
+                  <div
+                    className={`task-card${dragId === x.id ? ' dragging' : ''}`}
+                    key={x.id}
+                    draggable
+                    onClick={() => setDraft(x)}
+                    onDragStart={() => setDragId(x.id)}
+                    onDragEnd={() => { setDragId(null); setOverCol(null) }}
+                    // 카드에 놓으면 그 앞자리다. 칸까지 올라가면 맨 아래로 가버린다.
+                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); void dropOnCard(x) }}
+                  >
+                    <div className="t">{x.title}</div>
+                    <div className="m">
+                      <span className={`prio-${x.priority}`}>{TASK_PRIORITY_LABEL[x.priority]}</span>
+                      {x.due && (
+                        <span className={`due${x.due < t && x.status !== 'done' ? ' overdue' : ''}`}>
+                          <Icon name="calendar" size={12} />
+                          {x.due.slice(5)}
+                        </span>
+                      )}
+                      {x.project && <span>· {x.project}</span>}
+                    </div>
+                    {x.tags.length > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        {x.tags.map((tag) => <span className="tag" key={tag}>#{tag}</span>)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <MonthCalendar
