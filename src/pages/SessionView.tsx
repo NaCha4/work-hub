@@ -4,7 +4,13 @@ import CodeEntry from '../components/CodeEntry'
 import LiveLayer from '../components/LiveLayer'
 import { useAuth } from '../lib/auth'
 import { firebaseConfigured, liveConfigured } from '../lib/firebase'
-import { PREP_SANDBOX, downloadHtml, prepHtml, withViewerBridge } from '../lib/exportHtml'
+import {
+  PREP_SANDBOX,
+  STAGE_WIDTH,
+  downloadHtml,
+  prepHtml,
+  withViewerBridge,
+} from '../lib/exportHtml'
 import { syncMeta } from '../lib/live'
 import { fetchSession } from '../lib/session'
 import type { Session } from '../lib/types'
@@ -23,6 +29,30 @@ export default function SessionView() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
+  const stage = useRef<HTMLDivElement>(null)
+  // 자료의 실제 높이. iframe 이 알려주면 그만큼 늘려 안쪽 스크롤을 없앤다.
+  const [docHeight, setDocHeight] = useState(800)
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as { t?: string; h?: number }
+      if (d?.t === 'wh:size' && typeof d.h === 'number' && d.h > 0) setDocHeight(Math.ceil(d.h))
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [])
+
+  // 고정 폭으로 펼친 자료를 창 너비에 맞춰 줄이거나 키운다.
+  useEffect(() => {
+    const el = stage.current
+    if (!el) return
+    const fit = () => setScale(el.clientWidth / STAGE_WIDTH)
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [session])
 
   useEffect(() => {
     if (!codeParam) {
@@ -90,17 +120,34 @@ export default function SessionView() {
             다른 코드
           </button>
         </header>
-        <div className="viewer-stage">
-          <iframe
-            ref={frame}
-            className="viewer-frame"
-            title={session.snapshot.title}
-            srcDoc={html}
-            sandbox={PREP_SANDBOX}
-          />
-          {liveConfigured && (
-            <LiveLayer code={session.id} presenter={presenter} frame={frame} />
-          )}
+        {/* 스크롤은 이 상자가 맡는다. 자료와 덧칠이 한 덩어리로 함께 움직여야
+            좌표를 맞출 일이 없다. 안쪽은 고정 폭으로 펼치고 배율만 씌운다. */}
+        <div className="viewer-stage" ref={stage}>
+          <div className="stage-fit" style={{ height: docHeight * scale }}>
+            <div
+              className="stage-doc"
+              style={{ width: STAGE_WIDTH, height: docHeight, transform: `scale(${scale})` }}
+            >
+              <iframe
+                ref={frame}
+                className="viewer-frame"
+                title={session.snapshot.title}
+                srcDoc={html}
+                sandbox={PREP_SANDBOX}
+                style={{ width: STAGE_WIDTH, height: docHeight }}
+              />
+              {liveConfigured && (
+                <LiveLayer
+                  code={session.id}
+                  presenter={presenter}
+                  stage={stage}
+                  width={STAGE_WIDTH}
+                  height={docHeight}
+                  scale={scale}
+                />
+              )}
+            </div>
+          </div>
         </div>
       </div>
     )

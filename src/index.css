@@ -423,23 +423,29 @@ a { color: var(--accent); }
 .viewer-bar .spacer { flex: 1; }
 .viewer-title { font-weight: 600; }
 .viewer-note { color: var(--muted); font-size: 12.5px; }
-.viewer-stage { position: relative; flex: 1; min-height: 0; }
-.viewer-frame { width: 100%; height: 100%; border: 0; background: var(--bg); display: block; }
+/* 스크롤을 맡는 상자. iframe 안쪽 스크롤은 없애고 여기 하나로 모은다. */
+.viewer-stage { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--bg); }
+/* 배율이 걸린 안쪽은 자리를 차지하지 않으므로 바깥이 대신 높이를 잡아준다. */
+.stage-fit { position: relative; width: 100%; }
+.stage-doc { position: absolute; top: 0; left: 0; transform-origin: top left; }
+.viewer-frame { border: 0; background: #fff; display: block; }
 
 /* ---------- 발표 중 덧칠 ---------- */
-/* 자료 위에 겹치는 투명한 층. 발표자가 그릴 때만 입력을 받고, 그 외에는
-   통과시켜야 시청자가 자료를 스크롤할 수 있다. */
-.live-layer { position: absolute; inset: 0; }
-.live-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* 자료 위에 겹치는 투명한 층. 자료와 같은 크기라 좌표가 그대로 맞는다.
+   발표자가 그릴 때만 입력을 받고, 그 외에는 통과시켜야 자료를 다룰 수 있다. */
+.live-layer { position: absolute; top: 0; left: 0; overflow: visible; }
 .live-dot {
-  position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px;
-  border-radius: 50%; background: #e5484d88; border: 2px solid #e5484d;
-  box-shadow: 0 0 0 4px #e5484d22;
-  transition: left 60ms linear, top 60ms linear;
+  fill: #e5484d88; stroke: #e5484d; stroke-width: 2;
+  transition: cx 60ms linear, cy 60ms linear;
 }
+.live-view { fill: var(--accent); opacity: 0.45; }
+
+/* 도구막대와 단추는 배율이 걸린 상자 밖(body)에 붙는다. 안에 두면 함께
+   확대·축소되고, transform 이 걸린 조상 안에서는 fixed 도 그 상자를 기준으로 삼는다. */
+.live-follow { position: fixed; right: 18px; bottom: 18px; z-index: 30; box-shadow: var(--shadow); }
 .live-bar {
-  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 6px; z-index: 2;
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px; z-index: 30;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 999px; padding: 6px 10px; box-shadow: var(--shadow);
 }

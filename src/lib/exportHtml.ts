@@ -105,34 +105,37 @@ export function prepHtml(prep: PrepDoc): string {
 export const PREP_SANDBOX = 'allow-scripts allow-modals allow-popups'
 
 /**
+ * 자료를 펼칠 논리 폭(px).
+ *
+ * 모두가 같은 폭에서 배치를 계산해야 덧칠 좌표가 어긋나지 않는다. 창 크기에
+ * 맞춰 폭을 흘리면 반응형 자료가 다시 접히면서 같은 좌표가 다른 문단을 가리킨다.
+ * 그래서 폭은 이 값으로 고정하고, 화면에 맞추는 일은 배율이 맡는다.
+ */
+export const STAGE_WIDTH = 1200
+
+/**
  * 부모와 iframe 을 잇는 다리.
  *
  * 출처가 갈려 있어 부모가 iframe 안을 직접 만지지 못한다. 그래서 필요한 것만
  * postMessage 로 주고받는다. 지금 다루는 것은 둘이다.
  *   - 인쇄: 부모가 시키면 iframe 이 자기 print() 를 부른다.
- *   - 스크롤: 발표자 화면이 어디를 보고 있는지 알려주고, 시청자 화면은 그 자리로 맞춘다.
- *     이게 없으면 발표자가 3쪽을 가리켜도 시청자 화면은 1쪽에 있어 덧칠이 엉뚱한 곳에 뜬다.
+ *   - 내용 높이: 부모가 iframe 을 그 높이만큼 늘려 **안쪽 스크롤을 없앤다.**
+ *     그래야 덧칠 층이 iframe 과 같은 좌표계 위에 얹혀 함께 움직인다.
+ *     스크롤은 둘을 감싼 바깥이 맡는다.
  *
  * 문서 뒤에 덧붙이기만 하고, 내려받는 파일에는 넣지 않아 원본을 그대로 남긴다.
  */
 export function withViewerBridge(html: string): string {
   return `${html}
+<style>html,body{overflow:visible!important}</style>
 <script>(function(){
-  function max(){ return Math.max(0, document.documentElement.scrollHeight - innerHeight) }
-  addEventListener('message', function(e){
-    var d = e.data
-    if (d === 'wh:print') { print(); return }
-    if (d && d.t === 'wh:scrollTo') { scrollTo(0, d.r * max()) }
-  })
-  var tick = 0
-  addEventListener('scroll', function(){
-    if (tick) return
-    tick = setTimeout(function(){
-      tick = 0
-      var m = max()
-      parent.postMessage({ t: 'wh:scrolled', r: m ? scrollY / m : 0 }, '*')
-    }, 80)
-  }, { passive: true })
+  function report(){
+    parent.postMessage({ t: 'wh:size', h: document.documentElement.scrollHeight }, '*')
+  }
+  addEventListener('message', function(e){ if (e.data === 'wh:print') print() })
+  addEventListener('load', report)
+  if (window.ResizeObserver) new ResizeObserver(report).observe(document.documentElement)
+  report()
 })()</script>`
 }
 

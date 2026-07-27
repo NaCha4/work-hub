@@ -9,14 +9,18 @@ import { liveConfigured, rtdb } from './firebase'
  * Firestore 는 쓰기 건수로 값을 매겨 발표 한 번에 하루치 무료 한도를 태운다.
  * RTDB 는 오간 양으로 매기므로 이렇게 짧고 잦은 데이터에 맞는다.
  *
- * 좌표는 iframe 이 보이는 영역을 기준으로 0~1 로 정규화한다. 화면 크기가 서로
- * 달라도 같은 자리를 가리키게 하려는 것이고, 보고 있는 곳 자체는 스크롤 동기화가 맞춘다.
+ * **좌표는 자료 전체를 하나의 캔버스로 보고 그 위의 절대 위치(px)로 적는다.**
+ * 폭은 STAGE_WIDTH 로 고정돼 모두에게 같고, 화면 크기 차이는 배율이 흡수한다.
+ * 보이는 영역을 기준으로 삼으면 창 비율이 다른 사람에게 같은 값이 다른 곳을 가리킨다.
+ *
+ * 발표자가 보고 있는 구간은 덧칠이 아니라 따로 흐르는 값이다(view). 시청자 화면을
+ * 끌고 다니지 않고 표시만 하므로, 각자 자유롭게 스크롤하다가 필요할 때 찾아가면 된다.
  *
  * 자료는 여기 없다. 발표본은 Firestore 에 그대로 있고 이 통로에는 덧칠만 흐른다.
  */
 
 export interface Stroke {
-  /** "x,y x,y ..." 형태로 이어붙인 점들. 규칙이 2,000자로 자른다. */
+  /** "x,y x,y ..." 형태로 이어붙인 자료 위 절대 좌표. 규칙이 2,000자로 자른다. */
   pts: string
   /** 색 */
   c: string
@@ -24,14 +28,19 @@ export interface Stroke {
   w: number
 }
 
+/** 발표자가 지금 보고 있는 세로 구간. 자료 위 절대 좌표(px). */
+export interface View {
+  t: number
+  b: number
+}
+
 export interface LiveState {
   pointer: { x: number; y: number } | null
   strokes: Record<string, Stroke>
-  /** 발표자가 보고 있는 세로 위치 0~1 */
-  scroll: number | null
+  view: View | null
 }
 
-const EMPTY: LiveState = { pointer: null, strokes: {}, scroll: null }
+const EMPTY: LiveState = { pointer: null, strokes: {}, view: null }
 
 /** 한 획이 이보다 길어지면 새 획으로 넘긴다. 규칙의 2,000자 한도 아래로 둔다. */
 export const STROKE_LIMIT = 1800
@@ -70,9 +79,10 @@ export async function hidePointer(code: string) {
   if (r) await remove(r)
 }
 
-export async function sendScroll(code: string, r: number) {
-  const node = liveRef(code, '/scroll')
-  if (node) await set(node, r)
+/** 발표자가 보고 있는 구간. 시청자를 끌고 가지 않고 어디쯤인지 표시만 한다. */
+export async function sendView(code: string, view: View) {
+  const node = liveRef(code, '/view')
+  if (node) await set(node, view)
 }
 
 export async function putStroke(code: string, id: string, stroke: Stroke) {
@@ -108,7 +118,7 @@ export function useLive(code: string, enabled: boolean): LiveState {
         setState({
           pointer: v.pointer ?? null,
           strokes: v.strokes ?? {},
-          scroll: typeof v.scroll === 'number' ? v.scroll : null,
+          view: v.view ?? null,
         })
       },
       () => {
