@@ -155,13 +155,13 @@ export default function Dashboard() {
             return (
               <div
                 key={col}
-                className={`board-col${overCol === col ? ' drop' : ''}`}
+                className={`board-col col-${col}${overCol === col ? ' drop' : ''}`}
                 onDragOver={(e) => { e.preventDefault(); setOverCol(col) }}
                 onDragLeave={() => setOverCol((c) => (c === col ? null : c))}
                 onDrop={(e) => { e.preventDefault(); void dropOnColumn(col) }}
               >
                 <h4>
-                  <span>{TASK_STATUS_LABEL[col]}</span>
+                  <span className="name">{TASK_STATUS_LABEL[col]}</span>
                   {col === 'done' ? (
                     <button className="col-fold" onClick={() => setDoneOpen((o) => !o)}>
                       {list.length} {folded ? '펼치기' : '접기'}
