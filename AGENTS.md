@@ -140,6 +140,7 @@ src/
     markdown.ts     marked + DOMPurify, 날짜·태그 유틸
     exportHtml.ts   준비자료를 단일 HTML 문서로 만드는 생성기
     session.ts      세션 코드 생성·정규화·조회. 4.1 장을 읽고 손댈 것
+    live.ts         발표 중 덧칠을 나르는 RTDB 통로. 4.1.1 장을 읽고 손댈 것
     calendar.ts     구글 캘린더 읽기 전용 연동. 4.3 장을 읽고 손댈 것
   components/       Layout(사이드바) / Login / Modal / MarkdownField / DateInput
                     SessionManager
@@ -266,6 +267,9 @@ gh api -X PUT repos/NaCha4/work-hub/pages -f build_type=workflow
 아래 두 가지는 CLI 로 처리할 수 없다. 에이전트가 대신 해주겠다고 하지 말고 안내한다.
 
 - **GitHub Secrets** (`VITE_FIREBASE_*` 6개) — 없으면 배포본이 "설정이 필요합니다" 화면이 된다
+- **Realtime Database 인스턴스** — Firebase 콘솔에서 만든다(`asia-southeast1`, 잠금 모드로
+  시작). 주소를 `VITE_FIREBASE_DATABASE_URL` 로 `.env` 와 GitHub Secrets 양쪽에 넣는다.
+  없으면 발표 중 덧칠만 꺼지고 나머지는 그대로 동작한다. 4.1.1 참고
 - **Firebase 승인된 도메인** — Authentication > Settings 에 `nacha4.github.io` 가 없으면
   배포본에서 Google 로그인 팝업이 `auth/unauthorized-domain` 으로 차단된다
 - **구글 캘린더 연동(선택)** — Google Cloud Console 에서 맞춰야 켜진다. 하나라도 없으면
@@ -289,6 +293,37 @@ gh api -X PUT repos/NaCha4/work-hub/pages -f build_type=workflow
 ```bash
 npx firebase-tools deploy --only firestore:rules
 ```
+
+### 4.1.1 발표 중 덧칠 — 실시간 통로
+
+발표자가 자료 위에 포인터를 찍거나 펜으로 표시하면 코드를 보고 있는 사람에게
+그대로 간다. [src/lib/live.ts](src/lib/live.ts) 와
+[firebase/database.rules.json](firebase/database.rules.json) 두 곳이 전부다.
+
+- **Firestore 가 아니라 Realtime Database 를 쓴다.** 값이 아니라 빈도 때문이다.
+  포인터는 초당 열몇 번 갱신되는데 Firestore 는 쓰기 건수로 값을 매겨 발표 한 번에
+  하루치 무료 한도를 태운다. RTDB 는 오간 양으로 매긴다. 여기를 Firestore 로
+  되돌리자는 제안은 이 계산을 다시 해본 뒤에 한다.
+- **쓰기는 그 세션을 만든 사람만.** 비로그인 방문자는 읽기만 한다. 4.1 의
+  `sessions` 규칙과 같은 원칙이고, 한쪽만 열어두면 누구나 남의 발표에 낙서할 수 있다.
+- **`/sessions` 자체는 읽지 못한다.** RTDB 규칙은 위에서 아래로 물려받으므로
+  상위에 `.read` 를 주면 목록이 통째로 열린다. 읽기 권한은 `{code}/live` 에만 준다.
+- **RTDB 규칙은 Firestore 를 읽지 못한다.** 그래서 `active` 와 `expiresAt` 을
+  `{code}/meta` 에 복제해 두고 규칙이 그것을 본다. 세션을 발행·열기·닫기 할 때마다
+  `syncMeta()` 를 함께 불러야 하고, 빠뜨리면 닫은 세션의 통로가 열린 채로 남는다.
+- 자료 자체는 이 통로에 없다. 발표본은 Firestore 에 있고 여기엔 덧칠만 흐른다.
+  획 길이를 규칙에서 2,000자로 자르는 것도 이 통로를 파일 저장소로 쓰지 못하게 하려는 것이다.
+- iframe 안은 건드리지 않는다. 투명한 캔버스를 자료 **위에** 겹쳐 그 위에만 그린다.
+  좌표는 보이는 영역 기준 0~1 이고, 서로 다른 곳을 보면 소용없으므로 발표자의 스크롤
+  위치를 함께 보내 시청자 화면을 맞춘다. 그 통신은 `withViewerBridge()` 가 붙이는 조각이 받는다.
+
+규칙을 고쳤으면 배포해야 반영된다.
+
+```bash
+npx firebase-tools deploy --only database
+```
+
+---
 
 ## 4.3 구글 캘린더 — 밖으로 나가는 유일한 요청
 
@@ -440,4 +475,5 @@ superpowers 훅은 `using-superpowers` 전문을 매 세션에 강제 주입하�
 - `HashRouter` → `BrowserRouter` 교체
 - 이모지 (6장 참고). 아이콘 라이브러리 추가도 마찬가지
 - `sessions` 에 멤버 아닌 사람도 되는 목록 질의 추가
+- RTDB 에서 비로그인 쓰기를 열거나 `/sessions` 상위에 읽기 권한 주기 (4.1.1 참고)
 - 세션 실패 사유를 방문자에게 구분해서 알려주기 (4.1 참고)
