@@ -160,35 +160,72 @@ function endMs(end: RawEvent['end'], fallback: number) {
   return fallback
 }
 
-function toEvent(item: RawEvent, color: string): CalendarEvent | null {
+const pad = (n: number) => String(n).padStart(2, '0')
+const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+/**
+ * from 부터 toExclusive 하루 전까지의 날짜들.
+ * 조회한 창 밖으로는 나가지 않게 잘라내므로, 몇 달짜리 일정이 걸려도 폭주하지 않는다.
+ */
+function eachDate(from: string, toExclusive: string, winFrom: string, winTo: string): string[] {
+  const begin = from > winFrom ? from : winFrom
+  const stop = toExclusive < winTo ? toExclusive : winTo
+  if (begin >= stop) return [begin]
+
+  const out: string[] = []
+  const [y, m, d] = begin.split('-').map(Number)
+  const cur = new Date(y, m - 1, d)
+  while (ymd(cur) < stop) {
+    out.push(ymd(cur))
+    cur.setDate(cur.getDate() + 1)
+  }
+  return out
+}
+
+/**
+ * 일정 하나를 화면에 놓을 항목들로 편다.
+ *
+ * 여러 날에 걸친 종일 일정은 구글이 한 건으로 주기 때문에, 그대로 두면
+ * 첫날 칸에만 찍히고 나머지 날은 비어 보인다. 걸친 날짜마다 하나씩 만든다.
+ * 시각이 있는 일정은 시작한 날에만 둔다 — 이틀에 걸친 회의는 드물고,
+ * 이어지는 날에 시작 시각을 그대로 붙이면 거짓말이 된다.
+ */
+function toEvents(item: RawEvent, color: string, winFrom: string, winTo: string): CalendarEvent[] {
   const start = item.start
-  if (!start) return null
+  if (!start) return []
   const base = {
     id: item.id ?? '',
     title: item.summary ?? '(제목 없음)',
     link: item.htmlLink ?? '',
     color,
   }
+
   if (start.date) {
-    return {
+    const endsAt = endMs(item.end, new Date(`${start.date}T23:59`).getTime())
+    const days = eachDate(start.date, item.end?.date ?? start.date, winFrom, winTo)
+    // 하루씩 나뉘므로 id 도 나뉘어야 한다. 목록 key 와 중복 제거가 이 값을 쓴다.
+    return days.map((date) => ({
       ...base,
-      date: start.date,
+      id: days.length > 1 ? `${base.id}#${date}` : base.id,
+      date,
       time: '',
       allDay: true,
-      endsAt: endMs(item.end, new Date(`${start.date}T23:59`).getTime()),
-    }
+      endsAt,
+    }))
   }
-  if (!start.dateTime) return null
+
+  if (!start.dateTime) return []
   const d = new Date(start.dateTime)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return {
-    ...base,
-    date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
-    time: `${p(d.getHours())}:${p(d.getMinutes())}`,
-    allDay: false,
-    // 끝 시각이 없는 일정은 한 시간짜리로 친다. 진행 중 표시가 영영 안 꺼지는 것보다 낫다.
-    endsAt: endMs(item.end, d.getTime() + 3600_000),
-  }
+  return [
+    {
+      ...base,
+      date: ymd(d),
+      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      allDay: false,
+      // 끝 시각이 없는 일정은 한 시간짜리로 친다. 진행 중 표시가 영영 안 꺼지는 것보다 낫다.
+      endsAt: endMs(item.end, d.getTime() + 3600_000),
+    },
+  ]
 }
 
 /** colorId → 색 표. 좀처럼 바뀌지 않으므로 한 번만 받아 들고 있는다. */
@@ -245,10 +282,15 @@ async function fetchMonth(interactive: boolean, month: string): Promise<Calendar
   const colors = await loadEventColors(t)
 
   const [y, m] = month.split('-').map(Number)
-  const timeMin = new Date(y, m - 1, 1).toISOString()
-  // 달력은 이 달만 그리지만, 월말에 서 있어도 "다가오는 회의" 가 비지 않도록
+  const from = new Date(y, m - 1, 1)
+  // 달력은 이 달만 그리지만, 월말에 서 있어도 "다가오는 일정" 이 비지 않도록
   // 다음 달까지 함께 받아둔다. 달력 칸은 이 달 날짜만 찾아 쓰므로 남는 건 무시된다.
-  const timeMax = new Date(y, m + 1, 1).toISOString()
+  const to = new Date(y, m + 1, 1)
+  const timeMin = from.toISOString()
+  const timeMax = to.toISOString()
+  // 여러 날에 걸친 일정을 펼칠 때 이 창 밖으로 나가지 않도록 경계를 넘긴다.
+  const winFrom = ymd(from)
+  const winTo = ymd(to)
   const query =
     `?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}` +
     // 반복 일정을 회차별로 펼쳐야 날짜 칸에 하나씩 놓을 수 있다.
@@ -259,13 +301,15 @@ async function fetchMonth(interactive: boolean, month: string): Promise<Calendar
     cals.map((c) =>
       api<{ items?: RawEvent[] }>(`/calendars/${encodeURIComponent(c.id)}/events${query}`, t)
         // 일정에 색을 따로 주지 않았으면 그 캘린더의 색을 쓴다. 구글 화면과 같은 규칙이다.
-        .then((r) => (r.items ?? []).map((it) => toEvent(it, colors[it.colorId ?? ''] || c.color))),
+        .then((r) =>
+          (r.items ?? []).flatMap((it) =>
+            toEvents(it, colors[it.colorId ?? ''] || c.color, winFrom, winTo),
+          ),
+        ),
     ),
   )
 
-  const events = results
-    .flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
-    .filter((e): e is CalendarEvent => e !== null)
+  const events = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
 
   // 같은 회의가 여러 캘린더에 걸쳐 있으면 id 가 겹친다. 화면에서 두 번 보이는 것도,
   // 리스트 key 가 충돌하는 것도 막아야 한다.
