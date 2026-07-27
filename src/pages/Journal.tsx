@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import DateInput from '../components/DateInput'
 import Modal from '../components/Modal'
 import MarkdownField from '../components/MarkdownField'
 import { useAuth } from '../lib/auth'
+import { useCalendarEvents } from '../lib/calendar'
 import { byDate, createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
 import { parseTags, renderMarkdown, today, withDow } from '../lib/markdown'
-import type { Journal as JournalEntry } from '../lib/types'
+import type { Journal as JournalEntry, Task } from '../lib/types'
 
 const blank = (author: { uid: string; name: string }) => ({
   id: '',
@@ -20,11 +22,30 @@ const blank = (author: { uid: string; name: string }) => ({
   updatedAt: 0,
 })
 
+/** "- 항목" 마크다운 목록을 항목 문자열들로 푼다. 빈 줄과 빈 대시는 버린다. */
+function listItems(md: string): string[] {
+  return md
+    .split('\n')
+    .map((l) => l.replace(/^\s*[-*]\s*(\[.\]\s*)?/, '').trim())
+    .filter(Boolean)
+}
+
+const toList = (items: string[]) => items.map((x) => `- ${x}`).join('\n')
+
 export default function Journal() {
   const { member } = useAuth()
+  const loc = useLocation()
   const { items, loading, error } = useCollection<JournalEntry>('journals', !!member, byDate)
+  const { items: tasks } = useCollection<Task>('tasks', !!member)
+  const cal = useCalendarEvents(today().slice(0, 7))
   const [draft, setDraft] = useState<JournalEntry | null>(null)
   const [q, setQ] = useState('')
+
+  // 통합 검색에서 넘어오면 그 검색어가 걸린 채로 열린다.
+  useEffect(() => {
+    const s = loc.state as { q?: string } | null
+    if (s?.q) setQ(s.q)
+  }, [loc.state])
 
   const filtered = useMemo(() => {
     const k = q.trim().toLowerCase()
@@ -34,8 +55,32 @@ export default function Journal() {
     )
   }, [items, q])
 
-  const openNew = () =>
-    setDraft(blank({ uid: member!.uid, name: member!.displayName }) as JournalEntry)
+  /**
+   * 새 일지를 빈 칸으로 열지 않는다. 오늘 한 일은 이미 앱이 알고 있다.
+   *  - 한 일: 오늘 완료 처리한 할 일 + 오늘 캘린더 회의
+   *  - 다음 할 일: 어제 일지의 계획 중 아직 완료되지 않은 것 (자동 이월)
+   * 어차피 편집 칸이라 지우고 고치면 그만이고, 빈 화면에서 기억을 더듬는 것보다 낫다.
+   */
+  function openNew() {
+    const t = today()
+    const doneToday = tasks
+      .filter((x) => x.status === 'done' && new Date(x.updatedAt).toDateString() === new Date().toDateString())
+      .map((x) => x.title)
+    const meetings = cal.events
+      .filter((e) => e.date === t && !e.allDay)
+      .map((e) => `회의: ${e.title}`)
+    const yesterday = items.find((j) => j.date < t)
+    const carried = yesterday
+      ? listItems(yesterday.next).filter((x) => !doneToday.includes(x))
+      : []
+
+    const done = [...doneToday, ...meetings]
+    setDraft({
+      ...blank({ uid: member!.uid, name: member!.displayName }),
+      done: done.length ? toList(done) : '- ',
+      next: carried.length ? toList(carried) : '- ',
+    } as JournalEntry)
+  }
 
   async function save() {
     if (!draft) return
