@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import CodeEntry from '../components/CodeEntry'
 import { useAuth } from '../lib/auth'
 import { firebaseConfigured } from '../lib/firebase'
-import { buildPrepHtml, downloadHtml } from '../lib/exportHtml'
+import { PREP_SANDBOX, downloadHtml, prepHtml, withPrintBridge } from '../lib/exportHtml'
 import { fetchSession } from '../lib/session'
 import type { Session } from '../lib/types'
 
@@ -38,7 +38,7 @@ export default function SessionView() {
   }, [codeParam])
 
   const html = useMemo(
-    () => (session ? buildPrepHtml(session.snapshot) : ''),
+    () => (session ? withPrintBridge(prepHtml(session.snapshot)) : ''),
     [session],
   )
 
@@ -63,7 +63,7 @@ export default function SessionView() {
           <span className="spacer" />
           <button
             className="btn ghost sm"
-            onClick={() => frame.current?.contentWindow?.print()}
+            onClick={() => frame.current?.contentWindow?.postMessage('wh:print', '*')}
           >
             인쇄 · PDF
           </button>
@@ -79,7 +79,7 @@ export default function SessionView() {
           className="viewer-frame"
           title={session.snapshot.title}
           srcDoc={html}
-          sandbox="allow-same-origin allow-modals"
+          sandbox={PREP_SANDBOX}
         />
       </div>
     )

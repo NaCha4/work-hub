@@ -73,7 +73,7 @@ export interface Meeting {
   updatedAt: number
 }
 
-/** 회의 준비자료 — HTML 로 내보내 공유하는 문서 */
+/** 회의 준비자료 — 업로드한 단일 HTML 문서를 그대로 보여주고 공유한다 */
 export interface Prep {
   id: Id
   title: string
@@ -82,9 +82,14 @@ export interface Prep {
   date: string
   /** 연결된 회의록 id */
   meetingId?: Id
-  /** 본문 (markdown) */
-  content: string
-  theme: 'light' | 'dark' | 'slide'
+  /** 업로드한 HTML 문서 전체 */
+  html: string
+  /**
+   * 예전 마크다운 본문. 새로 만들 수는 없고, 이미 쌓인 자료와 발행해둔 세션 링크가
+   * 깨지지 않도록 읽기만 한다. theme 도 그때만 쓴다.
+   */
+  content?: string
+  theme?: 'light' | 'dark' | 'slide'
   tags: string[]
   authorUid: string
   authorName: string
@@ -95,7 +100,7 @@ export interface Prep {
 /** buildPrepHtml 에 넘길 수 있는 최소 형태 — 준비자료 본체와 세션 스냅샷이 공유한다. */
 export type PrepDoc = Pick<
   Prep,
-  'title' | 'subtitle' | 'date' | 'content' | 'theme' | 'tags' | 'authorName'
+  'title' | 'subtitle' | 'date' | 'html' | 'content' | 'theme' | 'tags' | 'authorName'
 >
 
 /**

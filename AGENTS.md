@@ -219,9 +219,16 @@ npx firebase-tools deploy --only firestore:rules
 - 입력창에 예시 코드를 `placeholder` 로 넣지 않는다. 코드 형태에 대한 힌트도 주지 않는다.
 - 세션은 발행 시점의 **스냅샷**을 들고 있다. 원고를 고쳐도 발표본은 바뀌지 않고,
   `갱신` 을 눌러야 반영된다. 발표 도중 사고를 막으려는 설계이므로 실시간 참조로 바꾸지 않는다.
-- 세션 뷰어는 `buildPrepHtml()` 결과를 iframe `srcDoc` 으로 띄운다. 내려받은 HTML 파일과
-  화면이 같아야 하므로 뷰어 전용 스타일을 따로 만들지 않는다. iframe 에 `allow-scripts` 를
-  주지 않는다 — 스크립트가 돌지 않으니 `allow-same-origin` 이 안전한 것이다.
+- 세션 뷰어는 준비자료 HTML 을 iframe `srcDoc` 으로 띄운다. 내려받은 파일과 화면이 같아야
+  하므로 뷰어 전용 스타일을 따로 만들지 않는다.
+- **sandbox 는 `allow-scripts` 를 주되 `allow-same-origin` 은 절대 함께 주지 않는다.**
+  준비자료는 이제 밖에서 만들어 온 HTML 이라 우리가 쓴 코드가 아니다. 둘을 같이 주면
+  그 문서가 이 앱의 출처를 얻어 로그인 토큰과 Firestore 에 손댈 수 있게 되고, 격리가
+  통째로 사라진다. 값은 [exportHtml.ts](src/lib/exportHtml.ts) 의 `PREP_SANDBOX` 한 곳에 있다.
+- 같은 이유로 **`window.open()` + `document.write()` 로 미리보기를 띄우지 않는다.**
+  그렇게 열면 우리 출처에서 실행된다. 예전에 있던 `openPreview()` 를 지운 이유다.
+- 출처가 갈려서 부모가 iframe 의 `print()` 를 직접 못 부른다. `postMessage` 로 알리고
+  문서 뒤에 붙인 `withPrintBridge()` 가 받는다. 내려받는 파일에는 이 조각을 넣지 않는다.
 
 ---
 

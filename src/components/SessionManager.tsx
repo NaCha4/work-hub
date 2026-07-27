@@ -48,10 +48,11 @@ export default function SessionManager({
           title: prep.title,
           subtitle: prep.subtitle,
           date: prep.date,
-          content: prep.content,
-          theme: prep.theme,
+          html: prep.html ?? '',
           tags: prep.tags,
           authorName: prep.authorName,
+          // 예전 마크다운 자료를 공유할 때만 함께 넣는다. Firestore 는 undefined 를 받지 않는다.
+          ...(prep.content ? { content: prep.content, theme: prep.theme ?? 'light' } : {}),
         },
         active: true,
         expiresAt: Date.now() + EXPIRY_OPTIONS[expiryIdx].ms,

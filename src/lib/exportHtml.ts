@@ -1,7 +1,9 @@
 import { renderMarkdown } from './markdown'
 import type { Prep, PrepDoc } from './types'
 
-const THEMES: Record<Prep['theme'], { bg: string; fg: string; accent: string; card: string; muted: string }> = {
+type Theme = NonNullable<Prep['theme']>
+
+const THEMES: Record<Theme, { bg: string; fg: string; accent: string; card: string; muted: string }> = {
   light: { bg: '#f7f7f5', fg: '#1c1c1a', accent: '#c96442', card: '#ffffff', muted: '#6b6b66' },
   dark: { bg: '#141413', fg: '#f0eee6', accent: '#e08a6b', card: '#1f1f1d', muted: '#a3a39c' },
   slide: { bg: '#0e1116', fg: '#e9edf2', accent: '#5aa9e6', card: '#161b22', muted: '#9aa4b0' },
@@ -14,9 +16,9 @@ const esc = (s: string) =>
  * 준비자료를 외부 의존성이 전혀 없는 단일 HTML 문서로 만든다.
  * 파일 하나만 전달하면 동료가 브라우저로 바로 열어볼 수 있다.
  */
-export function buildPrepHtml(prep: PrepDoc): string {
-  const t = THEMES[prep.theme] ?? THEMES.light
-  const body = renderMarkdown(prep.content)
+function buildPrepHtml(prep: PrepDoc): string {
+  const t = THEMES[prep.theme ?? 'light'] ?? THEMES.light
+  const body = renderMarkdown(prep.content ?? '')
   const meta = [prep.date, prep.authorName].filter(Boolean).join(' · ')
   const tags = prep.tags.map((x) => `<span class="tag">#${esc(x)}</span>`).join('')
 
@@ -84,8 +86,35 @@ export function buildPrepHtml(prep: PrepDoc): string {
 </html>`
 }
 
+/**
+ * 화면과 파일에 쓸 최종 HTML. 업로드한 문서가 있으면 손대지 않고 그대로 쓴다.
+ * 없으면 예전 마크다운 자료라 문서로 만들어 준다.
+ */
+export function prepHtml(prep: PrepDoc): string {
+  return prep.html?.trim() ? prep.html : buildPrepHtml(prep)
+}
+
+/**
+ * iframe 안의 문서를 어디까지 허용할지.
+ *
+ * 업로드한 HTML 은 우리가 쓴 코드가 아니다. 스크립트는 돌게 하되
+ * **`allow-same-origin` 은 절대 함께 주지 않는다.** 둘을 같이 주는 순간 문서가
+ * 이 앱의 출처를 얻어 로그인 토큰과 Firestore 에 손을 댈 수 있게 되고,
+ * 격리가 통째로 사라진다. AGENTS.md 4.1 참고.
+ */
+export const PREP_SANDBOX = 'allow-scripts allow-modals allow-popups'
+
+/**
+ * 인쇄 버튼용 다리. 출처가 갈려 있어 부모가 iframe 의 print() 를 직접 못 부른다.
+ * 문서 뒤에 덧붙이기만 하고, 내려받는 파일에는 넣지 않아 원본을 그대로 남긴다.
+ */
+export function withPrintBridge(html: string): string {
+  return `${html}
+<script>addEventListener('message',function(e){if(e.data==='wh:print')print()})</script>`
+}
+
 export function downloadHtml(prep: PrepDoc) {
-  const blob = new Blob([buildPrepHtml(prep)], { type: 'text/html;charset=utf-8' })
+  const blob = new Blob([prepHtml(prep)], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   const safeTitle = (prep.title || 'prep').replace(/[\\/:*?"<>|]/g, '_')
@@ -95,12 +124,6 @@ export function downloadHtml(prep: PrepDoc) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export function openPreview(prep: PrepDoc) {
-  const w = window.open('', '_blank')
-  if (!w) {
-    alert('팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.')
-    return
-  }
-  w.document.write(buildPrepHtml(prep))
-  w.document.close()
-}
+// 새 탭 미리보기는 없앴다. window.open + document.write 로 띄우면 그 문서가
+// 이 앱과 같은 출처에서 실행된다. 업로드한 HTML 은 스크립트를 담을 수 있으므로
+// 반드시 sandbox 를 건 iframe 안에서만 연다.
