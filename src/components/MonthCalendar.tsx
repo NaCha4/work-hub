@@ -130,12 +130,20 @@ export default function MonthCalendar({ month, today, items, onShift, onToday, s
         <Modal title={`${Number(day.slice(5, 7))}월 ${Number(day.slice(8))}일`} onClose={() => setDay(null)}>
           {dayItems.length === 0 && <p className="muted">일정이 없습니다.</p>}
           {dayItems.map((it) => (
-            <div className="day-row" key={it.key}>
+            <div
+              className="day-row"
+              key={it.key}
+              // 목록에서도 달력 칸과 같은 색을 쓴다. 제목을 링크 색으로 칠하면
+              // 전부 같은 강조색이 되어 어느 캘린더 일정인지 구분이 사라진다.
+              style={it.color ? { borderLeftColor: it.color } : undefined}
+            >
               <span className="tm">{it.time || '종일'}</span>
               {it.link ? (
-                <a href={it.link} target="_blank" rel="noreferrer">{it.title}</a>
+                <a className="day-title" href={it.link} target="_blank" rel="noreferrer">
+                  {it.title}
+                </a>
               ) : (
-                <span>{it.title}</span>
+                <span className="day-title">{it.title}</span>
               )}
               <span className="spacer" />
               <span className="src">{it.link ? '구글 캘린더' : '회의록'}</span>
