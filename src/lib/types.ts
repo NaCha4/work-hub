@@ -82,7 +82,12 @@ export interface Prep {
   date: string
   /** 연결된 회의록 id */
   meetingId?: Id
-  /** 업로드한 HTML 문서 전체 */
+  /**
+   * 업로드한 HTML 문서를 gzip 으로 눌러 base64 로 담은 것.
+   * Firestore 문서 상한이 1 MiB 라 원문을 그대로 넣으면 얼마 못 담는다.
+   */
+  htmlz?: string
+  /** 압축 전에 올린 자료. 새로 만들지는 않고 이미 쌓인 것을 읽기만 한다. */
   html: string
   /**
    * 예전 마크다운 본문. 새로 만들 수는 없고, 이미 쌓인 자료와 발행해둔 세션 링크가
@@ -100,7 +105,7 @@ export interface Prep {
 /** buildPrepHtml 에 넘길 수 있는 최소 형태 — 준비자료 본체와 세션 스냅샷이 공유한다. */
 export type PrepDoc = Pick<
   Prep,
-  'title' | 'subtitle' | 'date' | 'html' | 'content' | 'theme' | 'tags' | 'authorName'
+  'title' | 'subtitle' | 'date' | 'htmlz' | 'html' | 'content' | 'theme' | 'tags' | 'authorName'
 >
 
 /**

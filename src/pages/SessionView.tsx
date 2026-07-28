@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import CodeEntry from '../components/CodeEntry'
 import LiveLayer from '../components/LiveLayer'
@@ -8,7 +8,7 @@ import {
   PREP_SANDBOX,
   STAGE_WIDTH,
   downloadHtml,
-  prepHtml,
+  resolvePrepHtml,
   withViewerBridge,
 } from '../lib/exportHtml'
 import { syncMeta } from '../lib/live'
@@ -69,10 +69,19 @@ export default function SessionView() {
     return () => { cancelled = true }
   }, [codeParam])
 
-  const html = useMemo(
-    () => (session ? withViewerBridge(prepHtml(session.snapshot)) : ''),
-    [session],
-  )
+  // 눌러 담은 자료를 푸는 일이 있어 비동기다.
+  const [html, setHtml] = useState('')
+  useEffect(() => {
+    if (!session) {
+      setHtml('')
+      return
+    }
+    let alive = true
+    void resolvePrepHtml(session.snapshot).then((h) => {
+      if (alive) setHtml(withViewerBridge(h))
+    })
+    return () => { alive = false }
+  }, [session])
 
   // 이 세션을 만든 사람만 덧칠할 수 있다. 나머지는 받아 보기만 한다.
   const presenter = !!user && !!session && session.createdBy === user.uid

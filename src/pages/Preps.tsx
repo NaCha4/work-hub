@@ -1,19 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
 import SessionManager from '../components/SessionManager'
 import { useAuth } from '../lib/auth'
 import { byUpdated, createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
-import { PREP_SANDBOX, downloadHtml, prepHtml, withViewerBridge } from '../lib/exportHtml'
+import {
+  PREP_SANDBOX,
+  compressionSupported,
+  downloadHtml,
+  packHtml,
+  resolvePrepHtml,
+  withViewerBridge,
+} from '../lib/exportHtml'
 import { formatDate, parseTags, today } from '../lib/markdown'
 import type { Prep } from '../lib/types'
 
 /**
- * Firestore 문서 하나는 1MiB 를 넘을 수 없다. 제목·태그가 함께 들어가므로
- * 여유를 두고 자른다. 이 선을 넘으면 저장 단계에서 실패하는 대신 미리 막는다.
+ * Firestore 문서 하나는 1MiB 를 넘을 수 없다(하드 리밋). 제목·태그가 함께
+ * 들어가므로 여유를 두고 자른다. **재는 대상은 눌러 담은 뒤의 크기다.**
+ * HTML 은 보통 몇 배로 줄어들어, 원본 기준으로는 이보다 훨씬 큰 파일도 들어간다.
  */
-const MAX_BYTES = 700 * 1024
+const MAX_STORED = 900 * 1024
+
+/** 눌러도 이 정도면 애초에 자료가 아니다. 읽다가 브라우저가 멎는 것을 막는 선. */
+const MAX_RAW = 20 * 1024 * 1024
+
+const kb = (n: number) => `${Math.round(n / 1024).toLocaleString()}KB`
 
 const blank = (uid: string, name: string): Prep => ({
   id: '',
@@ -51,15 +64,26 @@ export default function Preps() {
     }
   }, [loc.state, items])
 
-  const preview = useMemo(
-    () => (editing ? withViewerBridge(prepHtml(editing)) : ''),
-    [editing],
-  )
+  // 눌러 담은 자료를 푸는 일이 있어 비동기다. 편집 중 내용을 그대로 비춘다.
+  const [preview, setPreview] = useState('')
+  useEffect(() => {
+    if (!editing) {
+      setPreview('')
+      return
+    }
+    let alive = true
+    void resolvePrepHtml(editing).then((h) => {
+      if (alive) setPreview(withViewerBridge(h))
+    })
+    return () => { alive = false }
+  }, [editing])
 
   async function save() {
     if (!editing) return
     if (!editing.title.trim()) return alert('제목을 입력해 주세요.')
-    if (!editing.html.trim() && !editing.content) return alert('HTML 파일을 올려 주세요.')
+    if (!editing.htmlz && !editing.html.trim() && !editing.content) {
+      return alert('HTML 파일을 올려 주세요.')
+    }
     const { id, createdAt: _c, updatedAt: _u, ...data } = editing
     if (id) {
       await updateDocById('preps', id, data)
@@ -74,20 +98,28 @@ export default function Preps() {
   async function pick(f: File | undefined) {
     if (!editing || !f) return
     if (!/\.html?$/i.test(f.name)) return alert('HTML 파일만 올릴 수 있습니다.')
-    if (f.size > MAX_BYTES) {
-      return alert(
-        `파일이 너무 큽니다 (${Math.round(f.size / 1024)}KB). ` +
-          `${Math.round(MAX_BYTES / 1024)}KB 이하로 줄여 주세요. ` +
-          '이미지를 많이 담았다면 그 부분을 덜어내면 줄어듭니다.',
-      )
-    }
+    if (f.size > MAX_RAW) return alert(`파일이 너무 큽니다 (${kb(f.size)}).`)
+
     const text = await f.text()
     // 제목을 아직 안 정했으면 파일 이름을 가져다 쓴다. 매번 두 번 타이핑할 이유가 없다.
-    setEditing({
-      ...editing,
-      html: text,
-      title: editing.title || f.name.replace(/\.html?$/i, ''),
-    })
+    const title = editing.title || f.name.replace(/\.html?$/i, '')
+
+    if (!compressionSupported) {
+      // 아주 오래된 브라우저. 누르지 못하니 원문 그대로 재고 그만큼만 받는다.
+      if (f.size > MAX_STORED) return alert(`파일이 너무 큽니다 (${kb(f.size)}).`)
+      setEditing({ ...editing, htmlz: '', html: text, title })
+      return
+    }
+
+    const packed = await packHtml(text)
+    if (packed.length > MAX_STORED) {
+      return alert(
+        `눌러 담아도 한도를 넘습니다 (${kb(f.size)} → ${kb(packed.length)}, 한도 ${kb(MAX_STORED)}).\n` +
+          '이미지를 파일 안에 박아 넣었다면 그 부분이 대부분을 차지합니다.',
+      )
+    }
+    // 눌러 담은 자료만 남기고 예전 칸은 비운다. 같은 내용을 두 벌 들고 있을 이유가 없다.
+    setEditing({ ...editing, htmlz: packed, html: '', title })
   }
 
   async function remove(p: Prep) {
@@ -97,7 +129,8 @@ export default function Preps() {
   }
 
   if (editing) {
-    const size = new Blob([editing.html]).size
+    const stored = editing.htmlz ? editing.htmlz.length : new Blob([editing.html]).size
+    const hasFile = !!editing.htmlz || !!editing.html
     return (
       <div className="page">
         <div className="page-head">
@@ -151,10 +184,12 @@ export default function Preps() {
             onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = '' }}
           />
           <button className="btn sm" onClick={() => file.current?.click()}>
-            {editing.html ? 'HTML 파일 교체' : 'HTML 파일 올리기'}
+            {hasFile ? 'HTML 파일 교체' : 'HTML 파일 올리기'}
           </button>
-          {editing.html ? (
-            <span className="muted">{Math.round(size / 1024).toLocaleString()}KB</span>
+          {hasFile ? (
+            <span className="muted">
+              {kb(stored)} 저장됨{editing.htmlz && ' (눌러 담음)'}
+            </span>
           ) : editing.content ? (
             <span className="muted">예전 마크다운 자료입니다. 파일을 올리면 대체됩니다.</span>
           ) : (

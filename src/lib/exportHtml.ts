@@ -87,11 +87,59 @@ function buildPrepHtml(prep: PrepDoc): string {
 }
 
 /**
+ * 업로드한 HTML 을 눌러 담기 위한 짝.
+ *
+ * Firestore 문서 상한 1 MiB 는 하드 리밋이라 늘릴 수 없다. 대신 HTML 은 같은
+ * 태그와 글자가 반복돼 잘 눌리므로, gzip 으로 줄이면 실질 한도가 몇 배가 된다.
+ * base64 로 되돌리는 값이 원래보다 1/3 늘지만 압축분이 훨씬 크다.
+ *
+ * 브라우저 기본 기능(CompressionStream)이라 의존성은 그대로 여섯 개다.
+ */
+const CHUNK = 0x8000
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let s = ''
+  // 한 번에 다 넘기면 인자가 너무 많아 스택이 넘친다. 나눠서 이어붙인다.
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(s)
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
+}
+
+export const compressionSupported =
+  typeof CompressionStream === 'function' && typeof DecompressionStream === 'function'
+
+export async function packHtml(html: string): Promise<string> {
+  const stream = new Blob([html]).stream().pipeThrough(new CompressionStream('gzip'))
+  const buf = await new Response(stream).arrayBuffer()
+  return bytesToBase64(new Uint8Array(buf))
+}
+
+export async function unpackHtml(packed: string): Promise<string> {
+  const bytes = base64ToBytes(packed)
+  const stream = new Blob([bytes.buffer as ArrayBuffer])
+    .stream()
+    .pipeThrough(new DecompressionStream('gzip'))
+  return await new Response(stream).text()
+}
+
+/**
  * 화면과 파일에 쓸 최종 HTML. 업로드한 문서가 있으면 손대지 않고 그대로 쓴다.
  * 없으면 예전 마크다운 자료라 문서로 만들어 준다.
+ *
+ * 눌러 담은 자료를 푸는 일이 있어 비동기다. 예전 자료도 같은 길로 지나간다.
  */
-export function prepHtml(prep: PrepDoc): string {
-  return prep.html?.trim() ? prep.html : buildPrepHtml(prep)
+export async function resolvePrepHtml(prep: PrepDoc): Promise<string> {
+  if (prep.htmlz) return unpackHtml(prep.htmlz)
+  if (prep.html?.trim()) return prep.html
+  return buildPrepHtml(prep)
 }
 
 /**
@@ -139,8 +187,8 @@ export function withViewerBridge(html: string): string {
 })()</script>`
 }
 
-export function downloadHtml(prep: PrepDoc) {
-  const blob = new Blob([prepHtml(prep)], { type: 'text/html;charset=utf-8' })
+export async function downloadHtml(prep: PrepDoc) {
+  const blob = new Blob([await resolvePrepHtml(prep)], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   const safeTitle = (prep.title || 'prep').replace(/[\\/:*?"<>|]/g, '_')

@@ -20,6 +20,7 @@ function snapshotOf(prep: Prep): PrepDoc {
     title: prep.title,
     subtitle: prep.subtitle,
     date: prep.date,
+    htmlz: prep.htmlz ?? '',
     html: prep.html ?? '',
     tags: prep.tags,
     authorName: prep.authorName,
