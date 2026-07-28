@@ -381,12 +381,6 @@ a { color: var(--accent); }
 .meal-slot .m { font-size: 13px; word-break: keep-all; overflow-wrap: anywhere; }
 .meal-slot .p { font-size: 11.5px; }
 
-.top-row {
-  display: flex; align-items: baseline; gap: 8px; font-size: 12.5px;
-  padding: 4px 0; border-top: 1px solid var(--border);
-}
-.top-row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
 /* ---------- 막대 그래프 ---------- */
 .chart { display: flex; align-items: flex-end; gap: 6px; }
 .chart-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
@@ -396,7 +390,11 @@ a { color: var(--accent); }
   min-height: 2px; transition: height 200ms ease;
 }
 .chart-val { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 14px; }
-.chart-label { font-size: 11px; color: var(--muted); }
+/* 식당 이름은 길 수 있다. 칸을 밀어내는 대신 잘라 두고 전체는 마우스를 올리면 뜬다. */
+.chart-label {
+  font-size: 11px; color: var(--muted); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ---------- markdown preview ---------- */
 .md { word-break: keep-all; overflow-wrap: anywhere; }

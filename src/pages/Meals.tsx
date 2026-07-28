@@ -4,17 +4,33 @@ import DateInput from '../components/DateInput'
 import Modal from '../components/Modal'
 import { useAuth } from '../lib/auth'
 import { byDate, createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
-import { parseTags, today, withDow } from '../lib/markdown'
+import { today, withDow } from '../lib/markdown'
 import { MEAL_SLOT_LABEL, type Meal, type MealSlot } from '../lib/types'
 
 const SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner']
 
-/** 끼니마다 색을 달리해 그래프에서 아침·점심·저녁이 눈으로 갈린다. */
+/** 끼니마다 색을 달리해 목록에서 아침·점심·저녁이 눈으로 갈린다. */
 const SLOT_COLOR: Record<MealSlot, string> = {
   breakfast: 'var(--col-review)',
   lunch: 'var(--col-doing)',
   dinner: 'var(--col-done)',
 }
+
+/**
+ * 음식 종류. 자유 입력으로 두면 "한식"과 "한식 "처럼 조금씩 다르게 적혀
+ * 통계가 흩어진다. 고르게 해서 집계가 성립하게 한다.
+ * 목록은 임의로 정한 것이니 필요하면 늘리고 줄인다.
+ */
+const KINDS = [
+  '한식', '중식', '일식', '양식', '분식',
+  '아시안', '패스트푸드', '카페·디저트', '도시락·간편식', '기타',
+] as const
+
+/** 종류가 여럿일 때 막대를 눈으로 가르려고 색을 돌려 쓴다. */
+const KIND_COLORS = [
+  'var(--accent)', 'var(--col-doing)', 'var(--col-done)',
+  'var(--col-review)', 'var(--col-todo)',
+]
 
 const blank = (uid: string, name: string, date: string, slot: MealSlot): Meal => ({
   id: '',
@@ -40,15 +56,6 @@ function daysAgo(n: number) {
   return ymd(d)
 }
 
-/** 그 날짜가 속한 주의 월요일. 주간 통계의 묶음 기준이다. */
-function weekStart(date: string) {
-  const [y, m, d] = date.split('-').map(Number)
-  const t = new Date(y, m - 1, d)
-  // getDay() 는 일요일이 0 이라 월요일 기준으로 옮긴다.
-  t.setDate(t.getDate() - ((t.getDay() + 6) % 7))
-  return ymd(t)
-}
-
 export default function Meals() {
   const { member } = useAuth()
   const { items, loading, error } = useCollection<Meal>('meals', !!member, byDate)
@@ -70,51 +77,23 @@ export default function Meals() {
     const since = span === 'week' ? daysAgo(6) : daysAgo(29)
     const inRange = items.filter((m) => m.date >= since)
 
-    // 주간은 날짜별, 월간은 주별로 묶는다. 30칸을 그리면 글자가 읽히지 않는다.
-    const buckets = new Map<string, number>()
-    if (span === 'week') {
-      for (let i = 6; i >= 0; i--) buckets.set(daysAgo(i), 0)
-    } else {
-      for (let i = 4; i >= 0; i--) buckets.set(weekStart(daysAgo(i * 7)), 0)
-    }
-    for (const m of inRange) {
-      const k = span === 'week' ? m.date : weekStart(m.date)
-      if (buckets.has(k)) buckets.set(k, buckets.get(k)! + 1)
-    }
-    const DOW = ['일', '월', '화', '수', '목', '금', '토']
-    const trend: Bar[] = [...buckets.entries()].map(([k, v]) => ({
-      key: k,
-      label: span === 'week'
-        ? DOW[new Date(`${k}T00:00`).getDay()]
-        : `${Number(k.slice(5, 7))}/${Number(k.slice(8))}`,
-      value: v,
-    }))
-
-    const bySlot: Bar[] = SLOTS.map((s) => ({
-      key: s,
-      label: MEAL_SLOT_LABEL[s],
-      value: inRange.filter((m) => m.slot === s).length,
-      color: SLOT_COLOR[s],
-    }))
-
-    const count = (pick: (m: Meal) => string) => {
+    /** 값별로 세어 많은 순으로 세운다. 칸이 너무 많으면 글자가 읽히지 않아 자른다. */
+    const rank = (pick: (m: Meal) => string, cap: number): Bar[] => {
       const c = new Map<string, number>()
       for (const m of inRange) {
         const v = pick(m).trim()
         if (v) c.set(v, (c.get(v) ?? 0) + 1)
       }
-      return [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+      return [...c.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, cap)
+        .map(([label, value], i) => ({ key: label, label, value, color: KIND_COLORS[i % KIND_COLORS.length] }))
     }
 
-    const days = span === 'week' ? 7 : 30
     return {
-      trend,
-      bySlot,
-      total: inRange.length,
-      // 하루 세 끼를 다 적었을 때가 100% 다.
-      rate: Math.round((inRange.length / (days * 3)) * 100),
-      topMenu: count((m) => m.menu),
-      topPlace: count((m) => m.place),
+      // 종류는 고른 값 하나만 쓰므로 첫 칸을 본다.
+      byKind: rank((m) => m.tags[0] ?? '', 8),
+      byPlace: rank((m) => m.place, 8).map((b) => ({ ...b, color: undefined })),
     }
   }, [items, span])
 
@@ -156,7 +135,7 @@ export default function Meals() {
           <div className="card-head">
             <h3>통계</h3>
             <span className="muted" style={{ fontSize: 12 }}>
-              {span === 'week' ? '최근 7일' : '최근 30일'} · {stats.total}끼 · 기록률 {stats.rate}%
+              {span === 'week' ? '최근 7일' : '최근 30일'}
             </span>
             <span className="spacer" />
             <button
@@ -175,21 +154,18 @@ export default function Meals() {
 
           <div className="grid cols-2">
             <div>
-              <div className="pane-label">{span === 'week' ? '요일별 기록' : '주별 기록'}</div>
-              <BarChart bars={stats.trend} max={span === 'week' ? 3 : undefined} unit="끼" />
+              <div className="pane-label">음식 종류</div>
+              {stats.byKind.length > 0
+                ? <BarChart bars={stats.byKind} unit="번" />
+                : <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>종류를 고른 기록이 없습니다.</p>}
             </div>
             <div>
-              <div className="pane-label">끼니별</div>
-              <BarChart bars={stats.bySlot} unit="끼" />
+              <div className="pane-label">자주 간 곳</div>
+              {stats.byPlace.length > 0
+                ? <BarChart bars={stats.byPlace} unit="번" />
+                : <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>장소를 적은 기록이 없습니다.</p>}
             </div>
           </div>
-
-          {(stats.topMenu.length > 0 || stats.topPlace.length > 0) && (
-            <div className="grid cols-2" style={{ marginTop: 14 }}>
-              <TopList title="자주 먹은 것" rows={stats.topMenu} />
-              <TopList title="자주 간 곳" rows={stats.topPlace} />
-            </div>
-          )}
         </div>
       )}
 
@@ -236,7 +212,9 @@ export default function Meals() {
                   {m ? (
                     <>
                       <span className="m">{m.menu}</span>
-                      {m.place && <span className="p muted">{m.place}</span>}
+                      <span className="p muted">
+                        {[m.tags[0], m.place].filter(Boolean).join(' · ')}
+                      </span>
                     </>
                   ) : (
                     <span className="m muted">기록하기</span>
@@ -304,13 +282,16 @@ export default function Meals() {
             />
           </div>
           <div className="field">
-            <label>태그</label>
-            <input
-              className="input"
-              value={draft.tags.join(', ')}
-              placeholder="한식, 외식"
-              onChange={(e) => setDraft({ ...draft, tags: parseTags(e.target.value) })}
-            />
+            <label>종류</label>
+            <select
+              className="select"
+              value={draft.tags[0] ?? ''}
+              // 고른 값 하나만 담는다. 빈 값이면 태그 없이 저장한다.
+              onChange={(e) => setDraft({ ...draft, tags: e.target.value ? [e.target.value] : [] })}
+            >
+              <option value="">고르지 않음</option>
+              {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
           </div>
         </Modal>
       )}
@@ -318,17 +299,3 @@ export default function Meals() {
   )
 }
 
-function TopList({ title, rows }: { title: string; rows: [string, number][] }) {
-  return (
-    <div>
-      <div className="pane-label">{title}</div>
-      {rows.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>—</p>}
-      {rows.map(([name, n]) => (
-        <div className="top-row" key={name}>
-          <span className="t">{name}</span>
-          <span className="muted">{n}회</span>
-        </div>
-      ))}
-    </div>
-  )
-}
