@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Journal from './pages/Journal'
 import Meetings from './pages/Meetings'
 import Preps from './pages/Preps'
+import Meals from './pages/Meals'
 import Settings from './pages/Settings'
 import SessionView from './pages/SessionView'
 
@@ -35,6 +36,7 @@ function PrivateApp() {
         <Route path="/journal" element={<Journal />} />
         <Route path="/meetings" element={<Meetings />} />
         <Route path="/preps" element={<Preps />} />
+        <Route path="/meals" element={<Meals />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

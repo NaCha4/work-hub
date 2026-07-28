@@ -116,6 +116,26 @@ export type PrepDoc = Pick<
   | 'tags' | 'authorName'
 >
 
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner'
+
+/** 식사 기록. 하루 한 끼가 문서 하나다. */
+export interface Meal {
+  id: Id
+  /** YYYY-MM-DD */
+  date: string
+  slot: MealSlot
+  /** 먹은 것 */
+  menu: string
+  /** 어디서 — 집·식당 이름 등 */
+  place: string
+  note: string
+  tags: string[]
+  authorUid: string
+  authorName: string
+  createdAt: number
+  updatedAt: number
+}
+
 /**
  * 발표 세션 — 로그인 없이 준비자료 하나를 보여주기 위한 공개 링크.
  * 문서 ID 가 곧 세션 코드이며, 그것이 유일한 인증 수단이다.
@@ -142,6 +162,12 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   doing: '진행 중',
   review: '검토',
   done: '완료',
+}
+
+export const MEAL_SLOT_LABEL: Record<MealSlot, string> = {
+  breakfast: '아침',
+  lunch: '점심',
+  dinner: '저녁',
 }
 
 export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {

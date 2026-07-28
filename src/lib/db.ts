@@ -17,6 +17,7 @@ export type CollectionName =
   | 'tasks'
   | 'meetings'
   | 'preps'
+  | 'meals'
   | 'members'
   | 'sessions'
 

@@ -10,6 +10,8 @@ const NAV: { to: string; label: string; ico: IconName }[] = [
   { to: '/journal', label: '업무 일지', ico: 'journal' },
   { to: '/meetings', label: '회의 메모', ico: 'meetings' },
   { to: '/preps', label: '준비자료', ico: 'preps' },
+  // 업무와 상관없는 개인 기록. 업무 항목 아래에 둔다.
+  { to: '/meals', label: '식사 일지', ico: 'meals' },
   { to: '/settings', label: '설정', ico: 'settings' },
 ]
 

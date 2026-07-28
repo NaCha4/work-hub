@@ -143,8 +143,8 @@ src/
     live.ts         발표 중 덧칠을 나르는 RTDB 통로. 4.1.1 장을 읽고 손댈 것
     calendar.ts     구글 캘린더 읽기 전용 연동. 4.3 장을 읽고 손댈 것
   components/       Layout(사이드바) / Login / Modal / MarkdownField / DateInput
-                    SessionManager
-  pages/            Dashboard / Journal / Meetings / Preps / Settings
+                    SessionManager / SearchModal / BarChart
+  pages/            Dashboard / Journal / Meetings / Preps / Meals / Settings
                     SessionView — 인증 게이트 바깥에 있는 유일한 화면
 firebase/
   firestore.rules   접근 통제의 실체. 아래 4장 참고
@@ -419,6 +419,10 @@ npm run build
 - 주석은 한국어로 쓰되, "왜" 를 설명할 때만 쓴다. 코드를 읽으면 아는 "무엇" 은 적지 않는다.
 - 새 데이터 종류를 추가하면 `types.ts` 에 타입을 정의하고, `db.ts` 의 `CollectionName` 에
   이름을 넣고, 규칙에 `match` 블록을 추가한다. 세 곳을 함께 고쳐야 한다.
+  규칙은 배포해야 반영되므로 빠뜨리면 새 컬렉션이 맨 아래 차단 규칙에 걸려 통째로 막힌다.
+- **그래프는 차트 라이브러리를 들이지 않는다.** 쓰는 곳이 적어
+  [BarChart.tsx](src/components/BarChart.tsx) 로 충분하다. 막대는 SVG 가 아니라 div 높이로
+  그리는데, 그래야 색·글자 크기를 CSS 변수로 물려받아 테마가 저절로 맞는다.
 - 문서 생성 시각은 `Date.now()` 로 클라이언트에서 넣는다(`createDoc` 이 처리).
   `serverTimestamp()` 로 바꾸면 타입이 `number` 가 아니게 되어 정렬·표시가 깨진다.
 - 날짜는 `YYYY-MM-DD` 문자열, 시각은 `HH:mm` 문자열로 저장한다. 문자열 비교로 정렬·비교한다.

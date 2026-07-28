@@ -16,6 +16,7 @@ export type IconName =
   | 'calendar'
   | 'key'
   | 'search'
+  | 'meals'
   | 'brand'
 
 const PATHS: Record<IconName, ReactNode> = {
@@ -85,6 +86,14 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="10.5" cy="10.5" r="6.5" />
       <path d="M15.5 15.5L21 21" />
+    </>
+  ),
+  // 포크와 나이프
+  meals: (
+    <>
+      <path d="M7 3v7a2 2 0 0 0 2 2 2 2 0 0 0 2-2V3" />
+      <path d="M9 12v9M9 3v5" />
+      <path d="M17 3c-1.5 1.5-2 3-2 5s.5 3 2 3v10" />
     </>
   ),
   brand: (
