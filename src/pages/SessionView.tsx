@@ -11,7 +11,7 @@ import {
   resolvePrepHtml,
   withViewerBridge,
 } from '../lib/exportHtml'
-import { syncMeta } from '../lib/live'
+import { getSessionBody, syncMeta } from '../lib/live'
 import { fetchSession } from '../lib/session'
 import type { Session } from '../lib/types'
 
@@ -69,19 +69,24 @@ export default function SessionView() {
     return () => { cancelled = true }
   }, [codeParam])
 
-  // 눌러 담은 자료를 푸는 일이 있어 비동기다.
-  const [html, setHtml] = useState('')
+  // 자료를 풀거나 받아오는 일이 있어 비동기다. 다리를 붙이지 않은 원본을 들고 있다가
+  // 화면에 띄울 때만 붙인다. 내려받기는 원본 그대로 나가야 한다.
+  const [raw, setRaw] = useState('')
   useEffect(() => {
     if (!session) {
-      setHtml('')
+      setRaw('')
       return
     }
     let alive = true
-    void resolvePrepHtml(session.snapshot).then((h) => {
-      if (alive) setHtml(withViewerBridge(h))
-    })
+    const load = async () =>
+      session.snapshot.store === 'rtdb'
+        ? await getSessionBody(session.id)
+        : await resolvePrepHtml(session.snapshot)
+    void load().then((h) => { if (alive) setRaw(h) })
     return () => { alive = false }
   }, [session])
+
+  const html = raw ? withViewerBridge(raw) : ''
 
   // 이 세션을 만든 사람만 덧칠할 수 있다. 나머지는 받아 보기만 한다.
   const presenter = !!user && !!session && session.createdBy === user.uid
@@ -122,7 +127,7 @@ export default function SessionView() {
           >
             인쇄 · PDF
           </button>
-          <button className="btn ghost sm" onClick={() => downloadHtml(session.snapshot)}>
+          <button className="btn ghost sm" onClick={() => downloadHtml(session.snapshot, raw)}>
             내려받기
           </button>
           <button className="btn ghost sm" onClick={() => nav('/s')}>

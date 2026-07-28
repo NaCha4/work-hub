@@ -13,26 +13,28 @@ import {
   resolvePrepHtml,
   withViewerBridge,
 } from '../lib/exportHtml'
+import { RTDB_MAX, dropPrepBody, getPrepBody, putPrepBody } from '../lib/live'
 import { formatDate, parseTags, today } from '../lib/markdown'
 import type { Prep } from '../lib/types'
 
 /**
- * Firestore 문서 하나는 1MiB 를 넘을 수 없다(하드 리밋). 제목·태그가 함께
- * 들어가므로 여유를 두고 자른다. **재는 대상은 눌러 담은 뒤의 크기다.**
- * HTML 은 보통 몇 배로 줄어들어, 원본 기준으로는 이보다 훨씬 큰 파일도 들어간다.
+ * 본문을 어디에 둘지 가르는 선.
+ *
+ * Firestore 문서 하나는 1MiB 를 넘을 수 없다(하드 리밋). 눌러 담은 크기가 이 선
+ * 아래면 문서 안에 두고, 넘으면 원본 그대로 Realtime Database 로 보낸다.
+ * 대부분의 자료는 잘 눌려서 문서 안에 들어가고, 이미지를 박아 넣은 자료만 넘어간다.
  */
-const MAX_STORED = 900 * 1024
-
-/** 눌러도 이 정도면 애초에 자료가 아니다. 읽다가 브라우저가 멎는 것을 막는 선. */
-const MAX_RAW = 20 * 1024 * 1024
+const FIRESTORE_MAX = 900 * 1024
 
 const kb = (n: number) => `${Math.round(n / 1024).toLocaleString()}KB`
+const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)}MB`
 
 const blank = (uid: string, name: string): Prep => ({
   id: '',
   title: '',
   subtitle: '',
   date: today(),
+  store: '',
   html: '',
   tags: [],
   authorUid: uid,
@@ -64,33 +66,48 @@ export default function Preps() {
     }
   }, [loc.state, items])
 
-  // 눌러 담은 자료를 푸는 일이 있어 비동기다. 편집 중 내용을 그대로 비춘다.
-  const [preview, setPreview] = useState('')
+  /**
+   * 편집 중인 자료의 본문. 저장 위치가 세 갈래(문서 안 눌러 담기 / 예전 원문 /
+   * RTDB 원본)라 화면에서는 여기 하나로 모아 쓴다. 미리보기·내려받기·저장이 이걸 본다.
+   */
+  const [body, setBody] = useState('')
+  // 아직 RTDB 에 올리지 않은 본문. 새 자료는 저장하며 id 가 생겨야 올릴 수 있다.
+  const [dirtyBody, setDirtyBody] = useState(false)
+
   useEffect(() => {
     if (!editing) {
-      setPreview('')
+      setBody('')
+      setDirtyBody(false)
       return
     }
+    if (dirtyBody) return // 방금 고른 파일이 있으면 그대로 둔다
     let alive = true
-    void resolvePrepHtml(editing).then((h) => {
-      if (alive) setPreview(withViewerBridge(h))
-    })
+    const load = async () =>
+      editing.store === 'rtdb' && editing.id
+        ? await getPrepBody(editing.id)
+        : await resolvePrepHtml(editing)
+    void load().then((h) => { if (alive) setBody(h) })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing])
+
+  const preview = body ? withViewerBridge(body) : ''
 
   async function save() {
     if (!editing) return
     if (!editing.title.trim()) return alert('제목을 입력해 주세요.')
-    if (!editing.htmlz && !editing.html.trim() && !editing.content) {
-      return alert('HTML 파일을 올려 주세요.')
-    }
-    const { id, createdAt: _c, updatedAt: _u, ...data } = editing
-    if (id) {
-      await updateDocById('preps', id, data)
-    } else {
-      const newId = await createDoc('preps', data)
-      setEditing({ ...editing, id: newId })
-    }
+    if (!body.trim() && !editing.content) return alert('HTML 파일을 올려 주세요.')
+
+    const { id, createdAt: _c, updatedAt: _u, ...rest } = editing
+    // 예전 문서에는 store 칸이 없다. Firestore 는 undefined 를 받지 않으므로 채워 보낸다.
+    const data = { ...rest, store: editing.store ?? '' }
+
+    const docId = id || (await createDoc('preps', data))
+    if (id) await updateDocById('preps', id, data)
+    else setEditing({ ...editing, id: docId })
+
+    if (editing.store === 'rtdb' && dirtyBody) await putPrepBody(docId, body)
+    setDirtyBody(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 1800)
   }
@@ -98,39 +115,43 @@ export default function Preps() {
   async function pick(f: File | undefined) {
     if (!editing || !f) return
     if (!/\.html?$/i.test(f.name)) return alert('HTML 파일만 올릴 수 있습니다.')
-    if (f.size > MAX_RAW) return alert(`파일이 너무 큽니다 (${kb(f.size)}).`)
+    if (f.size > RTDB_MAX) {
+      return alert(`파일이 너무 큽니다 (${mb(f.size)}). ${mb(RTDB_MAX)} 까지 올릴 수 있습니다.`)
+    }
 
     const text = await f.text()
     // 제목을 아직 안 정했으면 파일 이름을 가져다 쓴다. 매번 두 번 타이핑할 이유가 없다.
     const title = editing.title || f.name.replace(/\.html?$/i, '')
+    const packed = compressionSupported ? await packHtml(text) : ''
 
-    if (!compressionSupported) {
-      // 아주 오래된 브라우저. 누르지 못하니 원문 그대로 재고 그만큼만 받는다.
-      if (f.size > MAX_STORED) return alert(`파일이 너무 큽니다 (${kb(f.size)}).`)
-      setEditing({ ...editing, htmlz: '', html: text, title })
-      return
+    setBody(text)
+    if (packed && packed.length <= FIRESTORE_MAX) {
+      // 눌러서 들어가면 문서 안에 둔다. 저장소가 하나로 끝나 다루기 쉽다.
+      setEditing({ ...editing, store: '', htmlz: packed, html: '', title })
+      setDirtyBody(false)
+    } else {
+      // 이미지를 박아 넣은 자료는 눌러도 줄지 않는다. 원본 그대로 RTDB 로 보낸다.
+      setEditing({ ...editing, store: 'rtdb', htmlz: '', html: '', title })
+      setDirtyBody(true)
     }
+  }
 
-    const packed = await packHtml(text)
-    if (packed.length > MAX_STORED) {
-      return alert(
-        `눌러 담아도 한도를 넘습니다 (${kb(f.size)} → ${kb(packed.length)}, 한도 ${kb(MAX_STORED)}).\n` +
-          '이미지를 파일 안에 박아 넣었다면 그 부분이 대부분을 차지합니다.',
-      )
-    }
-    // 눌러 담은 자료만 남기고 예전 칸은 비운다. 같은 내용을 두 벌 들고 있을 이유가 없다.
-    setEditing({ ...editing, htmlz: packed, html: '', title })
+  /** 목록에서 바로 내려받기. 편집 화면 밖이라 본문을 여기서 찾아온다. */
+  async function download(p: Prep) {
+    const html = p.store === 'rtdb' ? await getPrepBody(p.id) : await resolvePrepHtml(p)
+    downloadHtml(p, html)
   }
 
   async function remove(p: Prep) {
     if (!confirm(`"${p.title}" 를 삭제할까요?`)) return
     await deleteDocById('preps', p.id)
+    if (p.store === 'rtdb') await dropPrepBody(p.id)
     if (editing?.id === p.id) setEditing(null)
   }
 
   if (editing) {
-    const stored = editing.htmlz ? editing.htmlz.length : new Blob([editing.html]).size
-    const hasFile = !!editing.htmlz || !!editing.html
+    const rawSize = new Blob([body]).size
+    const hasFile = !!body
     return (
       <div className="page">
         <div className="page-head">
@@ -144,7 +165,7 @@ export default function Preps() {
           >
             인쇄 · PDF
           </button>
-          <button className="btn sm" onClick={() => downloadHtml(editing)}>HTML 내려받기</button>
+          <button className="btn sm" onClick={() => downloadHtml(editing, body)}>HTML 내려받기</button>
           <button
             className="btn sm"
             onClick={() => (editing.id ? setShowShare(true) : alert('먼저 저장해 주세요.'))}
@@ -188,7 +209,10 @@ export default function Preps() {
           </button>
           {hasFile ? (
             <span className="muted">
-              {kb(stored)} 저장됨{editing.htmlz && ' (눌러 담음)'}
+              {kb(rawSize)}
+              {editing.htmlz && ` · 눌러 담아 ${kb(editing.htmlz.length)}`}
+              {editing.store === 'rtdb' && ' · 원본 그대로 보관'}
+              {dirtyBody && ' · 저장 안 됨'}
             </span>
           ) : editing.content ? (
             <span className="muted">예전 마크다운 자료입니다. 파일을 올리면 대체됩니다.</span>
@@ -252,7 +276,7 @@ export default function Preps() {
             )}
             <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
               <button className="btn sm" onClick={() => setEditing(p)}>열기</button>
-              <button className="btn sm" onClick={() => downloadHtml(p)}>HTML</button>
+              <button className="btn sm" onClick={() => void download(p)}>HTML</button>
               <button className="btn sm" onClick={() => setSharing(p)}>
                 <Icon name="key" size={13} />
                 세션

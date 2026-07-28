@@ -8,7 +8,7 @@ import {
   generateCode,
   sessionUrl,
 } from '../lib/session'
-import { dropLive, syncMeta } from '../lib/live'
+import { dropLive, getPrepBody, putSessionBody, syncMeta } from '../lib/live'
 import type { Prep, PrepDoc, Session } from '../lib/types'
 
 /**
@@ -20,6 +20,7 @@ function snapshotOf(prep: Prep): PrepDoc {
     title: prep.title,
     subtitle: prep.subtitle,
     date: prep.date,
+    store: prep.store ?? '',
     htmlz: prep.htmlz ?? '',
     html: prep.html ?? '',
     tags: prep.tags,
@@ -70,8 +71,10 @@ export default function SessionManager({
         createdBy: member!.uid,
         createdByName: member!.displayName,
       })
-      // 덧칠 통로의 규칙이 이 값을 보고 판단한다. 없으면 발표자도 그리지 못한다.
+      // 덧칠 통로의 규칙이 이 값을 보고 판단한다. 없으면 발표자도 그리지 못하고,
+      // 자료 사본을 쓰지도 못한다. 반드시 사본보다 먼저 와야 한다.
       await syncMeta(code, { ownerUid: member!.uid, active: true, expiresAt })
+      await copyBody(code)
       setIssued(code)
       setNote('')
     } catch (e) {
@@ -87,10 +90,21 @@ export default function SessionManager({
     setTimeout(() => setCopied(null), 1600)
   }
 
+  /**
+   * 본문이 RTDB 에 있는 자료는 발표본에도 사본을 둔다.
+   * 원고를 고쳐도 발표본이 바뀌지 않아야 하므로 참조가 아니라 복사다(4.1 스냅샷 원칙).
+   */
+  async function copyBody(code: string) {
+    if (prep.store !== 'rtdb') return
+    const html = await getPrepBody(prep.id)
+    if (html) await putSessionBody(code, html)
+  }
+
   /** 현재 준비자료 내용으로 발표본을 다시 찍어낸다. 코드와 링크는 그대로 유지된다. */
   async function refresh(s: Session) {
     if (!confirm('지금 준비자료 내용으로 이 세션의 자료를 갱신할까요?')) return
     await updateDocById('sessions', s.id, { snapshot: snapshotOf(prep) })
+    await copyBody(s.id)
   }
 
   /** 열고 닫기. RTDB 쪽 상태도 함께 맞춰야 이미 보고 있는 사람의 덧칠 통로가 닫힌다. */

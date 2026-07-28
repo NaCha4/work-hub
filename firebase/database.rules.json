@@ -1,10 +1,13 @@
-// 발표 중 덧칠(포인터·펜)을 실시간으로 나르는 통로. 자료 자체는 여기 없다.
+// 여기에 있는 것은 두 가지다.
+//   - preps/{id}  : 업로드한 준비자료 원본. Firestore 문서 상한 1 MiB 를 넘는
+//                   자료를 담으려고 이쪽에 둔다. 멤버만 읽고 쓴다.
+//   - sessions/{code} : 발표본 사본과 발표 중 덧칠(포인터·펜).
 //
 // Firestore 의 sessions 규칙과 같은 원칙을 따른다.
 //   - 쓰기는 그 세션을 만든 사람만. 비로그인 방문자는 절대 쓰지 못한다.
 //   - 읽기는 코드를 아는 사람이면 되지만, 살아 있고 만료 전인 세션만.
-//   - /sessions 자체는 읽지 못한다. 권한은 위에서 아래로 물려받으므로
-//     상위에 읽기를 주면 목록이 통째로 열린다. {code}/live 에만 준다.
+//   - /sessions 와 /preps 자체는 읽지 못한다. 권한은 위에서 아래로 물려받으므로
+//     상위에 읽기를 주면 목록이 통째로 열린다. 필요한 가지에만 준다.
 //
 // RTDB 규칙은 Firestore 를 읽지 못한다. 그래서 active/expiresAt 을 meta 에
 // 복제해 두고 그것을 본다. 세션을 닫거나 만료되면 이 통로도 함께 닫힌다.
@@ -15,11 +18,29 @@
     ".read": false,
     ".write": false,
 
+    // 준비자료 원본. 로그인한 멤버만 다룬다. 이 앱은 1인용이라 소유자를 더 따지지 않는다.
+    "preps": {
+      "$id": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        // RTDB 문자열 상한은 10MB 다. 그 아래에서 자른다.
+        ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 9000000)"
+      }
+    },
+
     "sessions": {
       "$code": {
         "meta": {
           ".write": "auth != null && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
           ".validate": "newData.hasChildren(['ownerUid', 'active', 'expiresAt']) && newData.child('ownerUid').val() === auth.uid && newData.child('active').isBoolean() && newData.child('expiresAt').isNumber()"
+        },
+
+        // 발행 시점의 자료 사본. 원고를 고쳐도 발표본이 바뀌지 않아야 하므로
+        // preps 를 참조하지 않고 그때의 내용을 그대로 복사해 둔다.
+        "doc": {
+          ".read": "root.child('sessions').child($code).child('meta').child('active').val() === true && root.child('sessions').child($code).child('meta').child('expiresAt').val() > now",
+          ".write": "auth != null && root.child('sessions').child($code).child('meta').child('ownerUid').val() === auth.uid",
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 9000000)"
         },
 
         "live": {

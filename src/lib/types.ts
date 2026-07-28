@@ -83,6 +83,12 @@ export interface Prep {
   /** 연결된 회의록 id */
   meetingId?: Id
   /**
+   * 본문이 어디 있는지. 비어 있으면 이 문서 안(htmlz 또는 html)이다.
+   * 'rtdb' 면 눌러도 Firestore 상한을 넘는 자료라 Realtime Database 에 원본으로 있다.
+   * 준비자료는 `preps/{id}`, 발표본 사본은 `sessions/{code}/doc` 이다.
+   */
+  store?: '' | 'rtdb'
+  /**
    * 업로드한 HTML 문서를 gzip 으로 눌러 base64 로 담은 것.
    * Firestore 문서 상한이 1 MiB 라 원문을 그대로 넣으면 얼마 못 담는다.
    */
@@ -105,7 +111,9 @@ export interface Prep {
 /** buildPrepHtml 에 넘길 수 있는 최소 형태 — 준비자료 본체와 세션 스냅샷이 공유한다. */
 export type PrepDoc = Pick<
   Prep,
-  'title' | 'subtitle' | 'date' | 'htmlz' | 'html' | 'content' | 'theme' | 'tags' | 'authorName'
+  | 'title' | 'subtitle' | 'date'
+  | 'store' | 'htmlz' | 'html' | 'content' | 'theme'
+  | 'tags' | 'authorName'
 >
 
 /**

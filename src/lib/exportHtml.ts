@@ -187,8 +187,9 @@ export function withViewerBridge(html: string): string {
 })()</script>`
 }
 
-export async function downloadHtml(prep: PrepDoc) {
-  const blob = new Blob([await resolvePrepHtml(prep)], { type: 'text/html;charset=utf-8' })
+/** html 은 이미 풀어놓은 본문. 저장 위치가 여러 곳이라 여기서 다시 찾지 않는다. */
+export function downloadHtml(prep: PrepDoc, html: string) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   const safeTitle = (prep.title || 'prep').replace(/[\\/:*?"<>|]/g, '_')

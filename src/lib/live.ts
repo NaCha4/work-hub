@@ -1,4 +1,4 @@
-import { onValue, ref, remove, set, update } from 'firebase/database'
+import { get, onValue, ref, remove, set, update } from 'firebase/database'
 import { useEffect, useState } from 'react'
 import { liveConfigured, rtdb } from './firebase'
 
@@ -63,10 +63,55 @@ export async function syncMeta(
   await set(ref(rtdb, `sessions/${code}/meta`), meta)
 }
 
-/** 세션을 지울 때 덧칠도 함께 지운다. 남겨두면 다음에 같은 코드가 나왔을 때 섞인다. */
+/** 세션을 지울 때 덧칠과 자료 사본도 함께 지운다. 남겨두면 다음에 같은 코드가 나왔을 때 섞인다. */
 export async function dropLive(code: string) {
   if (!rtdb) return
   await remove(ref(rtdb, `sessions/${code}`))
+}
+
+/**
+ * 업로드한 준비자료 원본을 두는 곳.
+ *
+ * Firestore 문서 상한 1 MiB 는 하드 리밋이라, 이미지를 박아 넣어 눌러도 줄지 않는
+ * 자료는 그 안에 들어가지 못한다. RTDB 문자열 상한은 10MB 라 그런 자료를 받는다.
+ * 본문만 이쪽에 두고 제목·날짜 같은 나머지는 Firestore 에 그대로 남는다.
+ */
+export const RTDB_MAX = 9_000_000
+
+export async function putPrepBody(id: string, html: string) {
+  if (!rtdb) throw new Error('실시간 저장소가 설정되지 않았습니다.')
+  await set(ref(rtdb, `preps/${id}`), html)
+}
+
+export async function getPrepBody(id: string): Promise<string> {
+  if (!rtdb) return ''
+  const snap = await get(ref(rtdb, `preps/${id}`))
+  return (snap.val() as string) ?? ''
+}
+
+export async function dropPrepBody(id: string) {
+  if (!rtdb) return
+  await remove(ref(rtdb, `preps/${id}`))
+}
+
+/**
+ * 발행 시점의 자료 사본. 원고를 고쳐도 발표본은 그대로여야 하므로 preps 를
+ * 참조하지 않고 그때의 내용을 복사해 둔다(4.1 의 스냅샷 원칙).
+ */
+export async function putSessionBody(code: string, html: string) {
+  if (!rtdb) throw new Error('실시간 저장소가 설정되지 않았습니다.')
+  await set(ref(rtdb, `sessions/${code}/doc`), html)
+}
+
+export async function getSessionBody(code: string): Promise<string> {
+  if (!rtdb) return ''
+  try {
+    const snap = await get(ref(rtdb, `sessions/${code}/doc`))
+    return (snap.val() as string) ?? ''
+  } catch {
+    // 닫혔거나 만료된 세션은 규칙이 막는다. 이유를 구분해 알리지 않는다.
+    return ''
+  }
 }
 
 export async function sendPointer(code: string, x: number, y: number) {
