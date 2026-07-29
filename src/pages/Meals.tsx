@@ -62,20 +62,44 @@ export default function Meals() {
   const [draft, setDraft] = useState<Meal | null>(null)
   const [span, setSpan] = useState<'week' | 'month'>('week')
 
+  /**
+   * 한 날짜의 한 끼니는 기록 하나여야 한다. 실수로 두 번 적히면 화면에는 하나만
+   * 보이는데 통계는 둘을 세어 숫자가 어긋난다. 가장 최근에 고친 것만 남기고
+   * 나머지는 따로 모아 두었다가 정리할 수 있게 한다.
+   */
+  const { unique, dupes } = useMemo(() => {
+    const keep = new Map<string, Meal>()
+    const extra: Meal[] = []
+    for (const m of items) {
+      const k = `${m.date}|${m.slot}`
+      const cur = keep.get(k)
+      if (!cur) keep.set(k, m)
+      else if ((m.updatedAt ?? 0) > (cur.updatedAt ?? 0)) { extra.push(cur); keep.set(k, m) }
+      else extra.push(m)
+    }
+    return { unique: [...keep.values()], dupes: extra }
+  }, [items])
+
   /** 날짜별로 끼니를 모아 하루 한 줄로 보여준다. */
   const byDay = useMemo(() => {
     const map = new Map<string, Partial<Record<MealSlot, Meal>>>()
-    for (const m of items) {
+    for (const m of unique) {
       const day = map.get(m.date) ?? {}
       day[m.slot] = m
       map.set(m.date, day)
     }
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
-  }, [items])
+  }, [unique])
+
+  const dupeByDate = useMemo(() => {
+    const c = new Map<string, number>()
+    for (const m of dupes) c.set(m.date, (c.get(m.date) ?? 0) + 1)
+    return c
+  }, [dupes])
 
   const stats = useMemo(() => {
     const since = span === 'week' ? daysAgo(6) : daysAgo(29)
-    const inRange = items.filter((m) => m.date >= since)
+    const inRange = unique.filter((m) => m.date >= since)
 
     /** 값별로 세어 많은 순으로 세운다. 칸이 너무 많으면 글자가 읽히지 않아 자른다. */
     const rank = (pick: (m: Meal) => string, cap: number): Bar[] => {
@@ -95,19 +119,58 @@ export default function Meals() {
       byKind: rank((m) => m.tags[0] ?? '', 8),
       byPlace: rank((m) => m.place, 8).map((b) => ({ ...b, color: undefined })),
     }
-  }, [items, span])
+  }, [unique, span])
 
+  const find = (date: string, slot: MealSlot) =>
+    unique.find((m) => m.date === date && m.slot === slot)
+
+  /** 이미 적어둔 끼니면 그 기록을 연다. 빈 창을 열면 같은 자리에 하나가 더 생긴다. */
   function open(date: string, slot: MealSlot, existing?: Meal) {
-    setDraft(existing ?? blank(member!.uid, member!.displayName, date, slot))
+    const found = existing ?? find(date, slot)
+    setDraft(found ?? blank(member!.uid, member!.displayName, date, slot))
+  }
+
+  /** 오늘 아직 안 적은 첫 끼니를 연다. 다 적었으면 아침 기록을 연다. */
+  function openToday() {
+    const t = today()
+    const empty = SLOTS.find((s) => !find(t, s))
+    open(t, empty ?? 'breakfast')
   }
 
   async function save() {
     if (!draft) return
     if (!draft.menu.trim()) return alert('먹은 것을 적어 주세요.')
     const { id, createdAt: _c, updatedAt: _u, ...data } = draft
+
+    // 창 안에서 날짜나 끼니를 바꿔 이미 있는 자리로 옮기는 경우까지 막는다.
+    const clash = unique.find(
+      (m) => m.date === draft.date && m.slot === draft.slot && m.id !== id,
+    )
+    if (clash) {
+      const moving = !!id
+      const ok = confirm(
+        `${draft.date} ${MEAL_SLOT_LABEL[draft.slot]} 기록이 이미 있습니다.\n` +
+          `그 기록을 지금 내용으로 바꿀까요?` +
+          (moving ? '\n\n원래 자리의 기록은 삭제됩니다.' : ''),
+      )
+      if (!ok) return
+      await updateDocById('meals', clash.id, data)
+      if (moving) await deleteDocById('meals', id)
+      setDraft(null)
+      return
+    }
+
     if (id) await updateDocById('meals', id, data)
     else await createDoc('meals', data)
     setDraft(null)
+  }
+
+  /** 이미 쌓인 중복을 치운다. 남기는 것은 가장 최근에 고친 기록이다. */
+  async function cleanDupes(date: string) {
+    const targets = dupes.filter((m) => m.date === date)
+    if (targets.length === 0) return
+    if (!confirm(`${date} 의 중복 기록 ${targets.length}건을 삭제할까요?\n가장 최근에 고친 기록만 남습니다.`)) return
+    await Promise.all(targets.map((m) => deleteDocById('meals', m.id)))
   }
 
   async function remove(m: Meal) {
@@ -124,7 +187,7 @@ export default function Meals() {
       <div className="page-head">
         <h1>식사 일지</h1>
         <span className="spacer" />
-        <button className="btn primary" onClick={() => open(t, 'breakfast')}>+ 오늘 식사</button>
+        <button className="btn primary" onClick={openToday}>+ 오늘 식사</button>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -197,6 +260,14 @@ export default function Meals() {
             <span className="muted" style={{ fontSize: 12 }}>
               {SLOTS.filter((s) => day[s]).length} / 3
             </span>
+            {!!dupeByDate.get(date) && (
+              <>
+                <span className="spacer" />
+                <button className="btn ghost sm danger" onClick={() => void cleanDupes(date)}>
+                  중복 {dupeByDate.get(date)}건 정리
+                </button>
+              </>
+            )}
           </div>
           <div className="meal-row">
             {SLOTS.map((s) => {
