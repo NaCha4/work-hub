@@ -128,6 +128,8 @@ export interface Meal {
   menu: string
   /** 어디서 — 집·식당 이름 등 */
   place: string
+  /** 메뉴를 고른 사람. 손으로 적는다. 비어 있을 수 있다. */
+  chooser?: string
   note: string
   tags: string[]
   authorUid: string

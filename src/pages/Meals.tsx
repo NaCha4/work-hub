@@ -32,12 +32,30 @@ const KIND_COLORS = [
   'var(--col-review)', 'var(--col-todo)',
 ]
 
+/**
+ * 종류마다 늘 같은 색을 준다. 순위대로 칠하면 구간을 바꿀 때마다 한식이
+ * 파랑이었다 빨강이 되어, 사람별 그래프와 종류 그래프를 눈으로 잇지 못한다.
+ */
+function kindColor(kind: string) {
+  const i = KINDS.indexOf(kind as (typeof KINDS)[number])
+  return i >= 0 ? KIND_COLORS[i % KIND_COLORS.length] : 'var(--muted)'
+}
+
+const SPANS = [
+  { key: 'week', label: '주간', days: 7 },
+  { key: 'month', label: '월간', days: 30 },
+  { key: 'all', label: '전체', days: 0 },
+] as const
+
+type Span = (typeof SPANS)[number]['key']
+
 const blank = (uid: string, name: string, date: string, slot: MealSlot): Meal => ({
   id: '',
   date,
   slot,
   menu: '',
   place: '',
+  chooser: '',
   note: '',
   tags: [],
   authorUid: uid,
@@ -60,7 +78,7 @@ export default function Meals() {
   const { member } = useAuth()
   const { items, loading, error } = useCollection<Meal>('meals', !!member, byDate)
   const [draft, setDraft] = useState<Meal | null>(null)
-  const [span, setSpan] = useState<'week' | 'month'>('week')
+  const [span, setSpan] = useState<Span>('week')
 
   /**
    * 한 날짜의 한 끼니는 기록 하나여야 한다. 실수로 두 번 적히면 화면에는 하나만
@@ -91,6 +109,12 @@ export default function Meals() {
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
   }, [unique])
 
+  /** 이미 적어둔 사람 이름. 입력 칸에서 골라 넣도록 모아 둔다. */
+  const choosers = useMemo(
+    () => [...new Set(unique.map((m) => (m.chooser ?? '').trim()).filter(Boolean))].sort(),
+    [unique],
+  )
+
   const dupeByDate = useMemo(() => {
     const c = new Map<string, number>()
     for (const m of dupes) c.set(m.date, (c.get(m.date) ?? 0) + 1)
@@ -98,8 +122,9 @@ export default function Meals() {
   }, [dupes])
 
   const stats = useMemo(() => {
-    const since = span === 'week' ? daysAgo(6) : daysAgo(29)
-    const inRange = unique.filter((m) => m.date >= since)
+    const days = SPANS.find((s) => s.key === span)!.days
+    // 전체는 자르지 않는다. 그 외에는 오늘을 포함해 days 일치를 본다.
+    const inRange = days ? unique.filter((m) => m.date >= daysAgo(days - 1)) : unique
 
     /** 값별로 세어 많은 순으로 세운다. 칸이 너무 많으면 글자가 읽히지 않아 자른다. */
     const rank = (pick: (m: Meal) => string, cap: number): Bar[] => {
@@ -111,13 +136,40 @@ export default function Meals() {
       return [...c.entries()]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .slice(0, cap)
-        .map(([label, value], i) => ({ key: label, label, value, color: KIND_COLORS[i % KIND_COLORS.length] }))
+        .map(([label, value]) => ({ key: label, label, value, color: kindColor(label) }))
     }
+
+    /**
+     * 누가 무엇을 골랐는지. 사람마다 종류별 개수를 세어 많이 고른 순으로 세운다.
+     * 고른 사람을 안 적은 기록은 셀 대상이 없으므로 빠진다.
+     */
+    const byChooser = (() => {
+      const per = new Map<string, Map<string, number>>()
+      for (const m of inRange) {
+        const who = (m.chooser ?? '').trim()
+        const kind = (m.tags[0] ?? '').trim()
+        if (!who || !kind) continue
+        const c = per.get(who) ?? new Map<string, number>()
+        c.set(kind, (c.get(kind) ?? 0) + 1)
+        per.set(who, c)
+      }
+      return [...per.entries()]
+        .map(([who, c]) => ({
+          who,
+          total: [...c.values()].reduce((a, b) => a + b, 0),
+          kinds: [...c.entries()]
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            .map(([kind, n]) => ({ kind, n })),
+        }))
+        .sort((a, b) => b.total - a.total || a.who.localeCompare(b.who))
+        .slice(0, 6)
+    })()
 
     return {
       // 종류는 고른 값 하나만 쓰므로 첫 칸을 본다.
       byKind: rank((m) => m.tags[0] ?? '', 8),
       byPlace: rank((m) => m.place, 8).map((b) => ({ ...b, color: undefined })),
+      byChooser,
     }
   }, [unique, span])
 
@@ -198,21 +250,18 @@ export default function Meals() {
           <div className="card-head">
             <h3>통계</h3>
             <span className="muted" style={{ fontSize: 12 }}>
-              {span === 'week' ? '최근 7일' : '최근 30일'}
+              {span === 'all' ? '전체 기간' : `최근 ${SPANS.find((s) => s.key === span)!.days}일`}
             </span>
             <span className="spacer" />
-            <button
-              className={`btn sm${span === 'week' ? ' primary' : ' ghost'}`}
-              onClick={() => setSpan('week')}
-            >
-              주간
-            </button>
-            <button
-              className={`btn sm${span === 'month' ? ' primary' : ' ghost'}`}
-              onClick={() => setSpan('month')}
-            >
-              월간
-            </button>
+            {SPANS.map((s) => (
+              <button
+                key={s.key}
+                className={`btn sm${span === s.key ? ' primary' : ' ghost'}`}
+                onClick={() => setSpan(s.key)}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
 
           <div className="grid cols-2">
@@ -228,6 +277,35 @@ export default function Meals() {
                 ? <BarChart bars={stats.byPlace} unit="번" />
                 : <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>장소를 적은 기록이 없습니다.</p>}
             </div>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div className="pane-label">고른 사람별 종류</div>
+            {stats.byChooser.length === 0 ? (
+              <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
+                고른 사람과 종류를 함께 적은 기록이 없습니다.
+              </p>
+            ) : (
+              stats.byChooser.map((row) => (
+                <div className="who-row" key={row.who}>
+                  <span className="who">{row.who}</span>
+                  {/* 한 줄을 종류별로 나눠 칠한다. 색은 위 종류 그래프와 같다. */}
+                  <span className="who-bar">
+                    {row.kinds.map((k) => (
+                      <i
+                        key={k.kind}
+                        style={{ flex: k.n, background: kindColor(k.kind) }}
+                        title={`${k.kind} ${k.n}번`}
+                      />
+                    ))}
+                  </span>
+                  <span className="who-sum muted">{row.total}번</span>
+                  <span className="who-detail muted">
+                    {row.kinds.map((k) => `${k.kind} ${k.n}`).join(' · ')}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -334,14 +412,30 @@ export default function Meals() {
               onChange={(e) => setDraft({ ...draft, menu: e.target.value })}
             />
           </div>
-          <div className="field">
-            <label>어디서</label>
-            <input
-              className="input"
-              value={draft.place}
-              placeholder="집 / 회사 구내식당 / 가게 이름"
-              onChange={(e) => setDraft({ ...draft, place: e.target.value })}
-            />
+          <div className="row">
+            <div className="field">
+              <label>어디서</label>
+              <input
+                className="input"
+                value={draft.place}
+                placeholder="집 / 회사 구내식당 / 가게 이름"
+                onChange={(e) => setDraft({ ...draft, place: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label>고른 사람</label>
+              <input
+                className="input"
+                list="wh-choosers"
+                value={draft.chooser ?? ''}
+                placeholder="메뉴를 정한 사람"
+                onChange={(e) => setDraft({ ...draft, chooser: e.target.value })}
+              />
+              {/* 한 번 적은 이름은 다음부터 골라 넣게 해 표기가 흩어지지 않게 한다. */}
+              <datalist id="wh-choosers">
+                {choosers.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </div>
           </div>
           <div className="field">
             <label>메모</label>
