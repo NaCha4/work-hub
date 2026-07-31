@@ -65,8 +65,8 @@ service cloud.firestore {
     match /journals/{id} {
       allow read: if isMember();
       allow create: if isMember() && request.resource.data.authorUid == request.auth.uid;
-      allow update, delete: if isMember()
-        && (resource.data.authorUid == request.auth.uid || isOwner());
+      // 일지는 하나의 작업 공간을 함께 보므로 어느 허용 계정에서 작성했든 고칠 수 있다.
+      allow update, delete: if isMember();
     }
 
     match /meetings/{id} {
