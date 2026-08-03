@@ -235,7 +235,7 @@ export default function Meals() {
 
     /**
      * 누가 무엇을 골랐는지. 사람마다 종류별 개수를 세어 많이 고른 순으로 세운다.
-     * 고른 사람을 안 적은 기록은 셀 대상이 없으므로 빠진다.
+     * 추천인을 안 적은 기록은 셀 대상이 없으므로 빠진다.
      */
     const byChooser = (() => {
       const per = new Map<string, Map<string, number>>()
@@ -340,74 +340,86 @@ export default function Meals() {
       {loading && <p className="muted">불러오는 중…</p>}
 
       {!loading && items.length > 0 && (
-        <div className="card">
-          <div className="card-head meal-stats-head">
+        <div className="card meal-stats-card">
+          <div className="meal-stats-title">
             <h3>통계</h3>
-            <span className="muted" style={{ fontSize: 12 }}>
+            <span className="muted">
               {span === 'all'
                 ? '전체 기간'
                 : span === 'month'
                   ? monthLabel(selectedMonth, showMonthYear)
                   : weekLabel(selectedWeek, showWeekYear)}
+              {' · '}
+              {mealScope === 'all' ? '전체 끼니' : MEAL_SLOT_LABEL[mealScope]}
             </span>
-            <span className="spacer" />
-            {span === 'month' && (
-              <select
-                className="select meal-period-select"
-                aria-label="통계 월"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-              >
-                {monthOptions.map((month) => (
-                  <option key={month} value={month}>{monthLabel(month, showMonthYear)}</option>
-                ))}
-              </select>
-            )}
-            {span === 'week' && (
-              <select
-                className="select meal-period-select"
-                aria-label="통계 주"
-                value={selectedWeek}
-                onChange={(e) => setSelectedWeek(e.target.value)}
-              >
-                {weekOptions.map((week) => (
-                  <option key={week} value={week}>{weekLabel(week, showWeekYear)}</option>
-                ))}
-              </select>
-            )}
-            <span className="meal-span-buttons">
-              {SPANS.map((s) => (
-                <button
-                  key={s.key}
-                  className={`btn sm${span === s.key ? ' primary' : ' ghost'}`}
-                  onClick={() => setSpan(s.key)}
+          </div>
+
+          <div className="meal-stats-controls">
+            <div className="meal-control-row">
+              <span className="meal-control-label">기간</span>
+              {span === 'month' && (
+                <select
+                  className="select meal-period-select"
+                  aria-label="통계 월"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
                 >
-                  {s.label}
-                </button>
-              ))}
-            </span>
+                  {monthOptions.map((month) => (
+                    <option key={month} value={month}>{monthLabel(month, showMonthYear)}</option>
+                  ))}
+                </select>
+              )}
+              {span === 'week' && (
+                <select
+                  className="select meal-period-select"
+                  aria-label="통계 주"
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(e.target.value)}
+                >
+                  {weekOptions.map((week) => (
+                    <option key={week} value={week}>{weekLabel(week, showWeekYear)}</option>
+                  ))}
+                </select>
+              )}
+              {span === 'all' && <span className="meal-period-all muted">모든 기록</span>}
+              <span className="spacer" />
+              <span className="meal-segmented" role="group" aria-label="통계 기간 단위">
+                {SPANS.map((s) => (
+                  <button
+                    key={s.key}
+                    className={span === s.key ? 'active' : ''}
+                    onClick={() => setSpan(s.key)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </span>
+            </div>
+
+            <div className="meal-control-row">
+              <span className="meal-control-label">끼니</span>
+              <span className="meal-segmented" role="group" aria-label="통계 끼니">
+                {([...SLOTS, 'all'] as MealScope[]).map((scope) => (
+                  <button
+                    key={scope}
+                    className={mealScope === scope ? 'active' : ''}
+                    onClick={() => setMealScope(scope)}
+                  >
+                    {scope === 'all' ? '전체' : MEAL_SLOT_LABEL[scope]}
+                  </button>
+                ))}
+              </span>
+            </div>
           </div>
 
-          <div className="meal-scope-buttons">
-            {([...SLOTS, 'all'] as MealScope[]).map((scope) => (
-              <button
-                key={scope}
-                className={`btn sm${mealScope === scope ? ' primary' : ' ghost'}`}
-                onClick={() => setMealScope(scope)}
-              >
-                {scope === 'all' ? '전체' : MEAL_SLOT_LABEL[scope]}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid cols-2">
-            <div>
+          <div className="grid cols-2 meal-stat-grid">
+            <div className="meal-stat-panel">
               <div className="pane-label">음식 종류</div>
               {stats.byKind.length > 0
                 ? <BarChart bars={stats.byKind} unit="번" />
                 : <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>종류를 고른 기록이 없습니다.</p>}
             </div>
-            <div>
+            <div className="meal-stat-panel">
               <div className="pane-label">자주 간 곳</div>
               {stats.byPlace.length > 0
                 ? <BarChart bars={stats.byPlace} unit="번" />
@@ -415,11 +427,11 @@ export default function Meals() {
             </div>
           </div>
 
-          <div style={{ marginTop: 14 }}>
-            <div className="pane-label">고른 사람별 종류</div>
+          <div className="meal-stat-panel meal-recommender-stat">
+            <div className="pane-label">추천인별 종류</div>
             {stats.byChooser.length === 0 ? (
               <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
-                고른 사람과 종류를 함께 적은 기록이 없습니다.
+                추천인과 종류를 함께 적은 기록이 없습니다.
               </p>
             ) : (
               stats.byChooser.map((row) => (
@@ -559,12 +571,12 @@ export default function Meals() {
               />
             </div>
             <div className="field">
-              <label>고른 사람</label>
+              <label>추천인</label>
               <input
                 className="input"
                 list="wh-choosers"
                 value={draft.chooser ?? ''}
-                placeholder="메뉴를 정한 사람"
+                placeholder="메뉴를 추천한 사람"
                 onChange={(e) => setDraft({ ...draft, chooser: e.target.value })}
               />
               {/* 한 번 적은 이름은 다음부터 골라 넣게 해 표기가 흩어지지 않게 한다. */}
