@@ -42,9 +42,9 @@ function kindColor(kind: string) {
 }
 
 const SPANS = [
-  { key: 'week', label: '주간', days: 7 },
-  { key: 'month', label: '월간', days: 30 },
-  { key: 'all', label: '전체', days: 0 },
+  { key: 'week', label: '주간' },
+  { key: 'month', label: '월간' },
+  { key: 'all', label: '전체' },
 ] as const
 
 type Span = (typeof SPANS)[number]['key']
@@ -67,11 +67,53 @@ const blank = (uid: string, name: string, date: string, slot: MealSlot): Meal =>
 const p2 = (n: number) => String(n).padStart(2, '0')
 const ymd = (d: Date) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
 
-/** n일 전 날짜. 통계 구간을 자를 때 쓴다. */
-function daysAgo(n: number) {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
+/** 날짜 문자열을 현지 시각 자정으로 읽는다. UTC 로 읽으면 한국에서 날짜가 어긋날 수 있다. */
+function dateOf(value: string) {
+  const [year, month, date] = value.split('-').map(Number)
+  return new Date(year, month - 1, date)
+}
+
+/** 월요일부터 일요일까지를 한 주로 본다. */
+function weekStart(value: string) {
+  const d = dateOf(value)
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
   return ymd(d)
+}
+
+function weekEnd(start: string) {
+  const d = dateOf(start)
+  d.setDate(d.getDate() + 6)
+  return ymd(d)
+}
+
+/** 월요일 시작 달력에서 이 날짜가 몇 번째 행에 놓이는지 센다. */
+function weekOfMonth(value: string) {
+  const d = dateOf(value)
+  const first = new Date(d.getFullYear(), d.getMonth(), 1)
+  const offset = (first.getDay() + 6) % 7
+  return Math.ceil((d.getDate() + offset) / 7)
+}
+
+const WEEK_ORDINAL = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째']
+
+function weekPart(value: string, withYear: boolean) {
+  const d = dateOf(value)
+  const year = withYear ? `${d.getFullYear()}년 ` : ''
+  return `${year}${d.getMonth() + 1}월 ${WEEK_ORDINAL[weekOfMonth(value) - 1]}주`
+}
+
+function weekLabel(start: string, withYear = false) {
+  const end = weekEnd(start)
+  const startMonth = start.slice(0, 7)
+  const endMonth = end.slice(0, 7)
+  if (startMonth === endMonth) return weekPart(start, withYear)
+  const crossesYear = start.slice(0, 4) !== end.slice(0, 4)
+  return `${weekPart(start, withYear || crossesYear)} / ${weekPart(end, withYear || crossesYear)}`
+}
+
+function monthLabel(month: string, withYear: boolean) {
+  const [year, number] = month.split('-').map(Number)
+  return `${withYear ? `${year}년 ` : ''}${number}월`
 }
 
 export default function Meals() {
@@ -79,6 +121,8 @@ export default function Meals() {
   const { items, loading, error } = useCollection<Meal>('meals', !!member, byDate)
   const [draft, setDraft] = useState<Meal | null>(null)
   const [span, setSpan] = useState<Span>('week')
+  const [selectedMonth, setSelectedMonth] = useState(today().slice(0, 7))
+  const [selectedWeek, setSelectedWeek] = useState(weekStart(today()))
 
   /**
    * 한 날짜의 한 끼니는 기록 하나여야 한다. 실수로 두 번 적히면 화면에는 하나만
@@ -121,10 +165,48 @@ export default function Meals() {
     return c
   }, [dupes])
 
+  const monthOptions = useMemo(() => {
+    const anchors = [
+      ...unique.map((m) => m.date.slice(0, 7)),
+      today().slice(0, 7),
+      selectedMonth,
+    ].sort()
+    const first = anchors[0]
+    const cursor = dateOf(`${anchors[anchors.length - 1]}-01`)
+    const out: string[] = []
+    while (ymd(cursor).slice(0, 7) >= first) {
+      out.push(ymd(cursor).slice(0, 7))
+      cursor.setMonth(cursor.getMonth() - 1)
+    }
+    return out
+  }, [unique, selectedMonth])
+
+  const weekOptions = useMemo(() => {
+    const anchors = [
+      ...unique.map((m) => weekStart(m.date)),
+      weekStart(today()),
+      selectedWeek,
+    ].sort()
+    const first = anchors[0]
+    const cursor = dateOf(anchors[anchors.length - 1])
+    const out: string[] = []
+    while (ymd(cursor) >= first) {
+      out.push(ymd(cursor))
+      cursor.setDate(cursor.getDate() - 7)
+    }
+    return out
+  }, [unique, selectedWeek])
+
+  const showMonthYear = new Set(monthOptions.map((m) => m.slice(0, 4))).size > 1
+  const showWeekYear = new Set(weekOptions.map((w) => w.slice(0, 4))).size > 1
+
   const stats = useMemo(() => {
-    const days = SPANS.find((s) => s.key === span)!.days
-    // 전체는 자르지 않는다. 그 외에는 오늘을 포함해 days 일치를 본다.
-    const inRange = days ? unique.filter((m) => m.date >= daysAgo(days - 1)) : unique
+    const selectedWeekEnd = weekEnd(selectedWeek)
+    const inRange = unique.filter((m) => {
+      if (span === 'all') return true
+      if (span === 'month') return m.date.startsWith(selectedMonth)
+      return m.date >= selectedWeek && m.date <= selectedWeekEnd
+    })
 
     /** 값별로 세어 많은 순으로 세운다. 칸이 너무 많으면 글자가 읽히지 않아 자른다. */
     const rank = (pick: (m: Meal) => string, cap: number): Bar[] => {
@@ -171,7 +253,7 @@ export default function Meals() {
       byPlace: rank((m) => m.place, 8).map((b) => ({ ...b, color: undefined })),
       byChooser,
     }
-  }, [unique, span])
+  }, [unique, span, selectedMonth, selectedWeek])
 
   const find = (date: string, slot: MealSlot) =>
     unique.find((m) => m.date === date && m.slot === slot)
@@ -247,10 +329,14 @@ export default function Meals() {
 
       {!loading && items.length > 0 && (
         <div className="card">
-          <div className="card-head">
+          <div className="card-head meal-stats-head">
             <h3>통계</h3>
             <span className="muted" style={{ fontSize: 12 }}>
-              {span === 'all' ? '전체 기간' : `최근 ${SPANS.find((s) => s.key === span)!.days}일`}
+              {span === 'all'
+                ? '전체 기간'
+                : span === 'month'
+                  ? monthLabel(selectedMonth, showMonthYear)
+                  : weekLabel(selectedWeek, showWeekYear)}
             </span>
             <span className="spacer" />
             {SPANS.map((s) => (
@@ -262,6 +348,30 @@ export default function Meals() {
                 {s.label}
               </button>
             ))}
+            {span === 'month' && (
+              <select
+                className="select meal-period-select"
+                aria-label="통계 월"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+              >
+                {monthOptions.map((month) => (
+                  <option key={month} value={month}>{monthLabel(month, showMonthYear)}</option>
+                ))}
+              </select>
+            )}
+            {span === 'week' && (
+              <select
+                className="select meal-period-select"
+                aria-label="통계 주"
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeek(e.target.value)}
+              >
+                {weekOptions.map((week) => (
+                  <option key={week} value={week}>{weekLabel(week, showWeekYear)}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="grid cols-2">
@@ -463,4 +573,3 @@ export default function Meals() {
     </div>
   )
 }
-
