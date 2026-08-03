@@ -55,6 +55,7 @@ const SPANS = [
 ] as const
 
 type Span = (typeof SPANS)[number]['key']
+type MealScope = MealSlot | 'all'
 
 const blank = (uid: string, name: string, date: string, slot: MealSlot): Meal => ({
   id: '',
@@ -128,6 +129,7 @@ export default function Meals() {
   const { items, loading, error } = useCollection<Meal>('meals', !!member, byDate)
   const [draft, setDraft] = useState<Meal | null>(null)
   const [span, setSpan] = useState<Span>('week')
+  const [mealScope, setMealScope] = useState<MealScope>('all')
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0, 7))
   const [selectedWeek, setSelectedWeek] = useState(weekStart(today()))
 
@@ -209,11 +211,14 @@ export default function Meals() {
 
   const stats = useMemo(() => {
     const selectedWeekEnd = weekEnd(selectedWeek)
-    const inRange = unique.filter((m) => {
+    const inPeriod = unique.filter((m) => {
       if (span === 'all') return true
       if (span === 'month') return m.date.startsWith(selectedMonth)
       return m.date >= selectedWeek && m.date <= selectedWeekEnd
     })
+    const inRange = mealScope === 'all'
+      ? inPeriod
+      : inPeriod.filter((m) => m.slot === mealScope)
 
     /** 값별로 세어 많은 순으로 세운다. 칸이 너무 많으면 글자가 읽히지 않아 자른다. */
     const rank = (pick: (m: Meal) => string, cap: number): Bar[] => {
@@ -260,7 +265,7 @@ export default function Meals() {
       byPlace: rank((m) => m.place, 8).map((b) => ({ ...b, color: placeColor(b.key) })),
       byChooser,
     }
-  }, [unique, span, selectedMonth, selectedWeek])
+  }, [unique, span, mealScope, selectedMonth, selectedWeek])
 
   const find = (date: string, slot: MealSlot) =>
     unique.find((m) => m.date === date && m.slot === slot)
@@ -381,6 +386,18 @@ export default function Meals() {
                 </button>
               ))}
             </span>
+          </div>
+
+          <div className="meal-scope-buttons">
+            {([...SLOTS, 'all'] as MealScope[]).map((scope) => (
+              <button
+                key={scope}
+                className={`btn sm${mealScope === scope ? ' primary' : ' ghost'}`}
+                onClick={() => setMealScope(scope)}
+              >
+                {scope === 'all' ? '전체' : MEAL_SLOT_LABEL[scope]}
+              </button>
+            ))}
           </div>
 
           <div className="grid cols-2">

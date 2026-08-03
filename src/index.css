@@ -384,6 +384,9 @@ a { color: var(--accent); }
 .meal-stats-head { flex-wrap: wrap; }
 .meal-period-select { width: auto; min-width: 150px; padding-block: 5px; }
 .meal-span-buttons { display: flex; gap: 8px; }
+.meal-scope-buttons {
+  display: flex; justify-content: flex-end; gap: 8px; margin: 0 0 14px;
+}
 
 /* ---------- 고른 사람별 종류 ---------- */
 .who-row {
