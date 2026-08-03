@@ -59,7 +59,14 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
 
     const out: Hit[] = []
     for (const j of journals) {
-      const text = [j.date, j.done, j.next, j.blockers, j.tags.join(' ')].join('\n')
+      const text = [
+        j.date,
+        j.morning ?? j.done ?? '',
+        j.afternoon ?? '',
+        j.overtime ?? '',
+        j.blockers,
+        j.tags.join(' '),
+      ].join('\n')
       if (!text.toLowerCase().includes(k)) continue
       out.push({
         key: `j${j.id}`,

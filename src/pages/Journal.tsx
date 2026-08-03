@@ -12,8 +12,9 @@ import type { Journal as JournalEntry, Task } from '../lib/types'
 const blank = (author: { uid: string; name: string }) => ({
   id: '',
   date: today(),
-  done: '- ',
-  next: '- ',
+  morning: '- ',
+  afternoon: '- ',
+  overtime: '- ',
   blockers: '',
   tags: [] as string[],
   authorUid: author.uid,
@@ -22,15 +23,28 @@ const blank = (author: { uid: string; name: string }) => ({
   updatedAt: 0,
 })
 
-/** "- 항목" 마크다운 목록을 항목 문자열들로 푼다. 빈 줄과 빈 대시는 버린다. */
-function listItems(md: string): string[] {
-  return md
-    .split('\n')
-    .map((l) => l.replace(/^\s*[-*]\s*(\[.\]\s*)?/, '').trim())
-    .filter(Boolean)
+const toList = (items: string[]) => items.map((x) => `- ${x}`).join('\n')
+
+function journalMorning(j: JournalEntry): string {
+  return j.morning ?? j.done ?? ''
 }
 
-const toList = (items: string[]) => items.map((x) => `- ${x}`).join('\n')
+function openForEdit(j: JournalEntry): JournalEntry {
+  return {
+    ...j,
+    morning: journalMorning(j),
+    afternoon: j.afternoon ?? '',
+    overtime: j.overtime ?? '',
+  }
+}
+
+type WorkPeriod = 'morning' | 'afternoon' | 'overtime'
+
+function periodAt(hour: number): WorkPeriod {
+  if (hour < 12) return 'morning'
+  if (hour < 18) return 'afternoon'
+  return 'overtime'
+}
 
 export default function Journal() {
   const { member } = useAuth()
@@ -51,34 +65,46 @@ export default function Journal() {
     const k = q.trim().toLowerCase()
     if (!k) return items
     return items.filter((j) =>
-      [j.date, j.done, j.next, j.blockers, ...j.tags].join(' ').toLowerCase().includes(k),
+      [
+        j.date,
+        journalMorning(j),
+        j.afternoon ?? '',
+        j.overtime ?? '',
+        j.blockers,
+        ...j.tags,
+      ].join(' ').toLowerCase().includes(k),
     )
   }, [items, q])
 
   /**
-   * 새 일지를 빈 칸으로 열지 않는다. 오늘 한 일은 이미 앱이 알고 있다.
-   *  - 한 일: 오늘 완료 처리한 할 일 + 오늘 캘린더 회의
-   *  - 다음 할 일: 어제 일지의 계획 중 아직 완료되지 않은 것 (자동 이월)
+   * 새 일지를 빈 칸으로 열지 않는다. 완료한 할 일과 오늘 캘린더 회의를
+   * 시각에 따라 오전·오후·야근 칸에 나눈다.
    * 어차피 편집 칸이라 지우고 고치면 그만이고, 빈 화면에서 기억을 더듬는 것보다 낫다.
    */
   function openNew() {
     const t = today()
-    const doneToday = tasks
+    const byPeriod: Record<WorkPeriod, string[]> = {
+      morning: [],
+      afternoon: [],
+      overtime: [],
+    }
+    tasks
       .filter((x) => x.status === 'done' && new Date(x.updatedAt).toDateString() === new Date().toDateString())
-      .map((x) => x.title)
-    const meetings = cal.events
+      .forEach((x) => {
+        byPeriod[periodAt(new Date(x.updatedAt).getHours())].push(x.title)
+      })
+    cal.events
       .filter((e) => e.date === t && !e.allDay)
-      .map((e) => `회의: ${e.title}`)
-    const yesterday = items.find((j) => j.date < t)
-    const carried = yesterday
-      ? listItems(yesterday.next).filter((x) => !doneToday.includes(x))
-      : []
+      .forEach((e) => {
+        const hour = Number(e.time.slice(0, 2))
+        byPeriod[periodAt(Number.isFinite(hour) ? hour : 0)].push(`회의: ${e.title}`)
+      })
 
-    const done = [...doneToday, ...meetings]
     setDraft({
       ...blank({ uid: member!.uid, name: member!.displayName }),
-      done: done.length ? toList(done) : '- ',
-      next: carried.length ? toList(carried) : '- ',
+      morning: byPeriod.morning.length ? toList(byPeriod.morning) : '- ',
+      afternoon: byPeriod.afternoon.length ? toList(byPeriod.afternoon) : '- ',
+      overtime: byPeriod.overtime.length ? toList(byPeriod.overtime) : '- ',
     } as JournalEntry)
   }
 
@@ -124,12 +150,13 @@ export default function Journal() {
             <h3>{withDow(j.date)}</h3>
             <span className="muted" style={{ fontSize: 12 }}>{j.authorName}</span>
             <span className="spacer" />
-            <button className="btn ghost sm" onClick={() => setDraft(j)}>편집</button>
+            <button className="btn ghost sm" onClick={() => setDraft(openForEdit(j))}>편집</button>
             <button className="btn ghost sm danger" onClick={() => remove(j)}>삭제</button>
           </div>
-          <div className="grid cols-3">
-            <Section title="한 일" md={j.done} />
-            <Section title="다음 할 일" md={j.next} />
+          <div className="grid journal-sections">
+            <Section title="오전" md={journalMorning(j)} />
+            <Section title="오후" md={j.afternoon ?? ''} />
+            <Section title="야근" md={j.overtime ?? ''} />
             <Section title="이슈" md={j.blockers} />
           </div>
           {j.tags.length > 0 && (
@@ -151,15 +178,20 @@ export default function Journal() {
             <DateInput value={draft.date} onChange={(v) => setDraft({ ...draft, date: v })} />
           </div>
           <MarkdownField
-            label="오늘 한 일"
-            value={draft.done}
-            onChange={(v) => setDraft({ ...draft, done: v })}
+            label="오전"
+            value={draft.morning}
+            onChange={(v) => setDraft({ ...draft, morning: v })}
             placeholder={'- 사내 계정/장비 세팅\n- 팀 코드베이스 훑어보기'}
           />
           <MarkdownField
-            label="다음 할 일"
-            value={draft.next}
-            onChange={(v) => setDraft({ ...draft, next: v })}
+            label="오후"
+            value={draft.afternoon}
+            onChange={(v) => setDraft({ ...draft, afternoon: v })}
+          />
+          <MarkdownField
+            label="야근"
+            value={draft.overtime}
+            onChange={(v) => setDraft({ ...draft, overtime: v })}
           />
           <MarkdownField
             label="이슈 / 막힌 것"

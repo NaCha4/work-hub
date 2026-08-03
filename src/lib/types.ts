@@ -14,10 +14,16 @@ export interface Journal {
   id: Id
   /** YYYY-MM-DD. 일지는 하루 단위라 제목 없이 날짜로 구분한다. */
   date: string
-  /** 오늘 한 일 (markdown) */
-  done: string
-  /** 내일 할 일 (markdown) */
-  next: string
+  /** 오전에 한 일 (markdown) */
+  morning: string
+  /** 오후에 한 일 (markdown) */
+  afternoon: string
+  /** 야근 중 한 일 (markdown) */
+  overtime: string
+  /** 시간대 구분 전에 저장한 한 일. 과거 일지를 읽을 때만 쓴다. */
+  done?: string
+  /** 사용하지 않게 된 다음 할 일. 과거 백업과의 호환을 위해 타입에만 남긴다. */
+  next?: string
   /** 이슈 / 막힌 것 (markdown) */
   blockers: string
   tags: string[]

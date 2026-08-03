@@ -183,6 +183,7 @@ a { color: var(--accent); }
 .grid { display: grid; gap: 12px; }
 .grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.grid.journal-sections { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
 /* 그리드 칸은 세로로 쌓이는 게 아니라 나란히 놓이므로 위 여백을 두면 안 된다.
    간격은 gap 이 담당한다. 남겨두면 첫 칸만 위로 튀어 한 줄의 높이가 어긋난다. */
