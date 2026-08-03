@@ -41,6 +41,13 @@ function kindColor(kind: string) {
   return i >= 0 ? KIND_COLORS[i % KIND_COLORS.length] : 'var(--muted)'
 }
 
+/** 장소 이름으로 색을 정해 통계 기간이나 순위가 바뀌어도 같은 장소는 같은 색을 쓴다. */
+function placeColor(place: string) {
+  let hash = 0
+  for (const char of place) hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0
+  return KIND_COLORS[hash % KIND_COLORS.length]
+}
+
 const SPANS = [
   { key: 'week', label: '주간' },
   { key: 'month', label: '월간' },
@@ -250,7 +257,7 @@ export default function Meals() {
     return {
       // 종류는 고른 값 하나만 쓰므로 첫 칸을 본다.
       byKind: rank((m) => m.tags[0] ?? '', 8),
-      byPlace: rank((m) => m.place, 8).map((b) => ({ ...b, color: undefined })),
+      byPlace: rank((m) => m.place, 8).map((b) => ({ ...b, color: placeColor(b.key) })),
       byChooser,
     }
   }, [unique, span, selectedMonth, selectedWeek])
