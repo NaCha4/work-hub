@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import BarChart, { type Bar } from '../components/BarChart'
 import DateInput from '../components/DateInput'
 import Modal from '../components/Modal'
@@ -56,6 +56,14 @@ const SPANS = [
 
 type Span = (typeof SPANS)[number]['key']
 type MealScope = MealSlot | 'all'
+const MEAL_SCOPES: MealScope[] = [...SLOTS, 'all']
+
+function indicatorStyle(index: number, count: number): CSSProperties {
+  return {
+    width: `calc(${100 / count}% - ${4 / count}px)`,
+    transform: `translateX(${index * 100}%)`,
+  }
+}
 
 const blank = (uid: string, name: string, date: string, slot: MealSlot): Meal => ({
   id: '',
@@ -384,6 +392,11 @@ export default function Meals() {
               {span === 'all' && <span className="meal-period-all muted">모든 기록</span>}
               <span className="spacer" />
               <span className="meal-segmented" role="group" aria-label="통계 기간 단위">
+                <i
+                  className="meal-segment-indicator"
+                  style={indicatorStyle(SPANS.findIndex((s) => s.key === span), SPANS.length)}
+                  aria-hidden="true"
+                />
                 {SPANS.map((s) => (
                   <button
                     key={s.key}
@@ -399,7 +412,12 @@ export default function Meals() {
             <div className="meal-control-row">
               <span className="meal-control-label">끼니</span>
               <span className="meal-segmented" role="group" aria-label="통계 끼니">
-                {([...SLOTS, 'all'] as MealScope[]).map((scope) => (
+                <i
+                  className="meal-segment-indicator"
+                  style={indicatorStyle(MEAL_SCOPES.indexOf(mealScope), MEAL_SCOPES.length)}
+                  aria-hidden="true"
+                />
+                {MEAL_SCOPES.map((scope) => (
                   <button
                     key={scope}
                     className={mealScope === scope ? 'active' : ''}

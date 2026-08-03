@@ -397,16 +397,22 @@ a { color: var(--accent); }
 .meal-period-select { width: auto; min-width: 190px; padding-block: 5px; background: var(--surface); }
 .meal-period-all { min-width: 190px; font-size: 12px; padding-left: 4px; }
 .meal-segmented {
-  display: inline-flex; flex: 0 0 auto; padding: 2px;
+  position: relative; display: inline-flex; flex: 0 0 auto; padding: 2px;
   border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
 }
+.meal-segment-indicator {
+  position: absolute; top: 2px; bottom: 2px; left: 2px; z-index: 0;
+  border-radius: 6px; background: var(--danger); pointer-events: none;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 .meal-segmented button {
+  position: relative; z-index: 1; min-width: 54px;
   border: 0; border-radius: 6px; background: transparent; color: var(--muted);
   padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600;
-  white-space: nowrap;
+  white-space: nowrap; transition: color 160ms ease;
 }
 .meal-segmented button:hover { color: var(--fg); background: var(--surface-2); }
-.meal-segmented button.active { color: #fff; background: var(--accent); }
+.meal-segmented button.active { color: #fff; background: transparent; }
 .meal-stat-grid { gap: 10px; }
 .meal-stat-panel {
   min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
@@ -421,6 +427,10 @@ a { color: var(--accent); }
   .meal-period-select, .meal-period-all { width: 100%; min-width: 0; }
   .meal-segmented { width: 100%; }
   .meal-segmented button { flex: 1; padding-inline: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meal-segment-indicator { transition: none; }
 }
 
 /* ---------- 추천인별 종류 ---------- */
