@@ -339,15 +339,6 @@ export default function Meals() {
                   : weekLabel(selectedWeek, showWeekYear)}
             </span>
             <span className="spacer" />
-            {SPANS.map((s) => (
-              <button
-                key={s.key}
-                className={`btn sm${span === s.key ? ' primary' : ' ghost'}`}
-                onClick={() => setSpan(s.key)}
-              >
-                {s.label}
-              </button>
-            ))}
             {span === 'month' && (
               <select
                 className="select meal-period-select"
@@ -372,6 +363,17 @@ export default function Meals() {
                 ))}
               </select>
             )}
+            <span className="meal-span-buttons">
+              {SPANS.map((s) => (
+                <button
+                  key={s.key}
+                  className={`btn sm${span === s.key ? ' primary' : ' ghost'}`}
+                  onClick={() => setSpan(s.key)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </span>
           </div>
 
           <div className="grid cols-2">
