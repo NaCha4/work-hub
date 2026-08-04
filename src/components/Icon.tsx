@@ -17,6 +17,8 @@ export type IconName =
   | 'key'
   | 'search'
   | 'meals'
+  | 'chevron-left'
+  | 'chevron-right'
   | 'brand'
 
 const PATHS: Record<IconName, ReactNode> = {
@@ -96,6 +98,8 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M17 3c-1.5 1.5-2 3-2 5s.5 3 2 3v10" />
     </>
   ),
+  'chevron-left': <path d="M15 5l-7 7 7 7" />,
+  'chevron-right': <path d="M9 5l7 7-7 7" />,
   brand: (
     <>
       <path d="M3 4h7v7H3z" />

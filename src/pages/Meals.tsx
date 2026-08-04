@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import BarChart, { type Bar } from '../components/BarChart'
 import DateInput from '../components/DateInput'
+import Icon from '../components/Icon'
 import Modal from '../components/Modal'
 import { useAuth } from '../lib/auth'
 import { byDate, createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
@@ -132,6 +133,18 @@ function monthLabel(month: string, withYear: boolean) {
   return `${withYear ? `${year}년 ` : ''}${number}월`
 }
 
+function shiftWeek(start: string, delta: number) {
+  const d = dateOf(start)
+  d.setDate(d.getDate() + delta * 7)
+  return ymd(d)
+}
+
+function shiftMonth(month: string, delta: number) {
+  const d = dateOf(`${month}-01`)
+  d.setMonth(d.getMonth() + delta)
+  return ymd(d).slice(0, 7)
+}
+
 export default function Meals() {
   const { member } = useAuth()
   const { items, loading, error } = useCollection<Meal>('meals', !!member, byDate)
@@ -182,40 +195,55 @@ export default function Meals() {
     return c
   }, [dupes])
 
-  const monthOptions = useMemo(() => {
-    const anchors = [
-      ...unique.map((m) => m.date.slice(0, 7)),
-      today().slice(0, 7),
-      selectedMonth,
-    ].sort()
-    const first = anchors[0]
-    const cursor = dateOf(`${anchors[anchors.length - 1]}-01`)
-    const out: string[] = []
-    while (ymd(cursor).slice(0, 7) >= first) {
-      out.push(ymd(cursor).slice(0, 7))
-      cursor.setMonth(cursor.getMonth() - 1)
-    }
-    return out
-  }, [unique, selectedMonth])
+  const periodSamples = useMemo(
+    () => mealScope === 'all' ? unique : unique.filter((m) => m.slot === mealScope),
+    [unique, mealScope],
+  )
+  const sampleDates = useMemo(
+    () => periodSamples.map((m) => m.date).sort(),
+    [periodSamples],
+  )
+  const periodYears = new Set([
+    ...unique.map((m) => m.date.slice(0, 4)),
+    selectedMonth.slice(0, 4),
+    selectedWeek.slice(0, 4),
+  ])
+  const showMonthYear = periodYears.size > 1
+  const showWeekYear = periodYears.size > 1
+  const currentWeekEnd = weekEnd(selectedWeek)
+  const pickerDate = periodSamples.find((m) => span === 'week'
+    ? m.date >= selectedWeek && m.date <= currentWeekEnd
+    : m.date.startsWith(selectedMonth))?.date ?? ''
 
-  const weekOptions = useMemo(() => {
-    const anchors = [
-      ...unique.map((m) => weekStart(m.date)),
-      weekStart(today()),
-      selectedWeek,
-    ].sort()
-    const first = anchors[0]
-    const cursor = dateOf(anchors[anchors.length - 1])
-    const out: string[] = []
-    while (ymd(cursor) >= first) {
-      out.push(ymd(cursor))
-      cursor.setDate(cursor.getDate() - 7)
+  const hasPeriodSample = (key: string) => {
+    if (span === 'week') {
+      const end = weekEnd(key)
+      return periodSamples.some((m) => m.date >= key && m.date <= end)
     }
-    return out
-  }, [unique, selectedWeek])
+    return periodSamples.some((m) => m.date.startsWith(key))
+  }
 
-  const showMonthYear = new Set(monthOptions.map((m) => m.slice(0, 4))).size > 1
-  const showWeekYear = new Set(weekOptions.map((w) => w.slice(0, 4))).size > 1
+  const adjacentPeriod = (delta: number) => span === 'week'
+    ? shiftWeek(selectedWeek, delta)
+    : shiftMonth(selectedMonth, delta)
+
+  function movePeriod(delta: number) {
+    const target = adjacentPeriod(delta)
+    if (!hasPeriodSample(target)) return
+    if (span === 'week') setSelectedWeek(target)
+    else if (span === 'month') setSelectedMonth(target)
+  }
+
+  function pickPeriod(value: string) {
+    if (!value || span === 'all') return
+    const target = span === 'week' ? weekStart(value) : value.slice(0, 7)
+    if (!hasPeriodSample(target)) {
+      alert('선택한 기간에는 기록이 없습니다.')
+      return
+    }
+    if (span === 'week') setSelectedWeek(target)
+    else setSelectedMonth(target)
+  }
 
   const stats = useMemo(() => {
     const selectedWeekEnd = weekEnd(selectedWeek)
@@ -365,29 +393,44 @@ export default function Meals() {
           <div className="meal-stats-controls">
             <div className="meal-control-row">
               <span className="meal-control-label">기간</span>
-              {span === 'month' && (
-                <select
-                  className="select meal-period-select"
-                  aria-label="통계 월"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                >
-                  {monthOptions.map((month) => (
-                    <option key={month} value={month}>{monthLabel(month, showMonthYear)}</option>
-                  ))}
-                </select>
-              )}
-              {span === 'week' && (
-                <select
-                  className="select meal-period-select"
-                  aria-label="통계 주"
-                  value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value)}
-                >
-                  {weekOptions.map((week) => (
-                    <option key={week} value={week}>{weekLabel(week, showWeekYear)}</option>
-                  ))}
-                </select>
+              {span !== 'all' && (
+                <span className="meal-period-nav">
+                  <button
+                    type="button"
+                    className="meal-period-arrow"
+                    aria-label={span === 'week' ? '이전 주' : '이전 달'}
+                    disabled={!hasPeriodSample(adjacentPeriod(-1))}
+                    onClick={() => movePeriod(-1)}
+                  >
+                    <Icon name="chevron-left" size={15} />
+                  </button>
+                  <label className="meal-period-picker">
+                    <Icon name="calendar" size={14} />
+                    <span>
+                      {span === 'week'
+                        ? weekLabel(selectedWeek, showWeekYear)
+                        : monthLabel(selectedMonth, showMonthYear)}
+                    </span>
+                    <input
+                      type="date"
+                      aria-label={span === 'week' ? '통계 주 선택' : '통계 월 선택'}
+                      value={pickerDate}
+                      min={sampleDates[0]}
+                      max={sampleDates[sampleDates.length - 1]}
+                      onClick={(e) => e.currentTarget.showPicker?.()}
+                      onChange={(e) => pickPeriod(e.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="meal-period-arrow"
+                    aria-label={span === 'week' ? '다음 주' : '다음 달'}
+                    disabled={!hasPeriodSample(adjacentPeriod(1))}
+                    onClick={() => movePeriod(1)}
+                  >
+                    <Icon name="chevron-right" size={15} />
+                  </button>
+                </span>
               )}
               {span === 'all' && <span className="meal-period-all muted">모든 기록</span>}
               <span className="spacer" />
