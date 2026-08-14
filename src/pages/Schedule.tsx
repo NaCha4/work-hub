@@ -60,7 +60,7 @@ function blank(uid: string, name: string, date = today(), task?: Task, project =
     endDate: date,
     startTime: task ? '09:00' : nowTime(),
     endTime: task ? '10:00' : '',
-    allDay: false,
+    allDay: true,
     taskId: task?.id ?? '',
     project: task?.project || project,
     location: '',
