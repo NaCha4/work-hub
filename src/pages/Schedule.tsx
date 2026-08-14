@@ -4,7 +4,14 @@ import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
 import Modal from '../components/Modal'
 import { useAuth } from '../lib/auth'
-import { createDoc, deleteDocById, deleteProjectCalendar, updateDocById, useCollection } from '../lib/db'
+import {
+  createDoc,
+  deleteDocById,
+  deleteProjectCalendar,
+  renameProjectCalendar,
+  updateDocById,
+  useCollection,
+} from '../lib/db'
 import { nowTime, today } from '../lib/markdown'
 import {
   SCHEDULE_KIND_LABEL,
@@ -171,6 +178,24 @@ export default function SchedulePage() {
     )
   }
 
+  async function renameProject(name: string, color: ProjectCalendarColor, item?: ProjectCalendar) {
+    const nextName = prompt('새 프로젝트 이름을 입력해 주세요.', name)?.trim()
+    if (!nextName || nextName === name) return
+    if (calendarNames.some((value) => value !== name && value.toLowerCase() === nextName.toLowerCase())) {
+      return alert('같은 이름의 프로젝트가 이미 있습니다.')
+    }
+    const linkedSchedules = schedules.filter((schedule) => schedule.project === name)
+    const linkedTasks = tasks.filter((task) => task.project === name)
+    await renameProjectCalendar(
+      item?.id,
+      linkedSchedules.map((schedule) => schedule.id),
+      linkedTasks.map((task) => task.id),
+      nextName,
+      { color, authorUid: member!.uid, authorName: member!.displayName },
+    )
+    setSpotlightProject((current) => current === name ? nextName : current)
+  }
+
   function selectProject(name: string) {
     setSpotlightProject((current) => current === name ? null : name)
   }
@@ -306,6 +331,7 @@ export default function SchedulePage() {
                     onSelect={() => selectProject(name)}
                     onAdd={() => openNew(today(), undefined, name)}
                     onColor={(color) => changeProjectColor(name, color, calendar)}
+                    onRename={() => renameProject(name, calendar?.color ?? 'blue', calendar)}
                     onRemove={() => removeProject(name, calendar?.id)}
                   />
                 )
@@ -368,7 +394,7 @@ function Stat({ label, value, tone = '' }: { label: string; value: number; tone?
   return <div className={`schedule-stat ${tone}`}><span>{label}</span><strong>{value}</strong></div>
 }
 
-function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRemove }: {
+function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRename, onRemove }: {
   name: string
   color: ProjectCalendarColor
   count: number
@@ -377,6 +403,7 @@ function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect,
   onSelect: () => void
   onAdd: () => void
   onColor?: (color: ProjectCalendarColor) => void
+  onRename?: () => void
   onRemove?: () => void
 }) {
   const [context, setContext] = useState<{ x: number; y: number } | null>(null)
@@ -394,11 +421,11 @@ function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect,
   }, [context])
 
   function openContext(event: ReactMouseEvent) {
-    if (!onRemove && !onColor) return
+    if (!onRemove && !onColor && !onRename) return
     event.preventDefault()
     setContext({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 194)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 132)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 172)),
     })
   }
 
@@ -406,7 +433,7 @@ function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect,
     <div
       className={`project-calendar-row${selected ? ' selected' : ''}${unfocused ? ' unfocused' : ''}`}
       onContextMenu={openContext}
-      title={onRemove || onColor ? '우클릭하여 프로젝트 관리' : undefined}
+      title={onRemove || onColor || onRename ? '우클릭하여 프로젝트 관리' : undefined}
     >
       <button className="project-calendar-toggle" onClick={onSelect} aria-pressed={selected}>
         <span className={`project-calendar-dot project-${color}`} />
@@ -414,7 +441,7 @@ function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect,
         <span className="project-calendar-count">{count}</span>
       </button>
       <button className="project-calendar-add" onClick={onAdd} title={`${name} 일정 추가`} aria-label={`${name} 일정 추가`}>+</button>
-      {context && (onColor || onRemove) && (
+      {context && (onColor || onRename || onRemove) && (
         <div
           className="project-context-menu"
           role="menu"
@@ -440,6 +467,18 @@ function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect,
                 ))}
               </div>
             </>
+          )}
+          {onRename && (
+            <button
+              className="project-context-action"
+              role="menuitem"
+              onClick={() => {
+                setContext(null)
+                onRename()
+              }}
+            >
+              프로젝트 이름 변경
+            </button>
           )}
           {onRemove && (
             <button

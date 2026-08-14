@@ -115,3 +115,39 @@ export async function deleteProjectCalendar(
     await batch.commit()
   }
 }
+
+/** 프로젝트 이름을 바꾸면서 연결된 일정과 업무의 문자열 참조도 함께 옮긴다. */
+export async function renameProjectCalendar(
+  projectId: string | undefined,
+  scheduleIds: string[],
+  taskIds: string[],
+  name: string,
+  fallback: { color: string; authorUid: string; authorName: string },
+) {
+  const refs = [
+    ...scheduleIds.map((id) => doc(db, 'schedules', id)),
+    ...taskIds.map((id) => doc(db, 'tasks', id)),
+  ]
+  const chunks = refs.length ? Math.ceil(refs.length / 450) : 1
+  const now = Date.now()
+
+  for (let index = 0; index < chunks; index += 1) {
+    const batch = writeBatch(db)
+    for (const ref of refs.slice(index * 450, (index + 1) * 450)) {
+      batch.update(ref, { project: name, updatedAt: now })
+    }
+    if (index === chunks - 1) {
+      if (projectId) {
+        batch.update(doc(db, 'scheduleProjects', projectId), { name, updatedAt: now })
+      } else {
+        batch.set(doc(collection(db, 'scheduleProjects')), {
+          name,
+          ...fallback,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+    }
+    await batch.commit()
+  }
+}

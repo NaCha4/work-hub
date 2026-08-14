@@ -539,11 +539,14 @@ a { color: var(--accent); }
   border-radius: 5px; cursor: pointer;
 }
 .project-context-color:hover, .project-context-color.active { outline: 2px solid currentColor; outline-offset: 1px; }
-.project-context-delete {
+.project-context-action, .project-context-delete {
   width: 100%; border: 0; border-radius: 5px; padding: 7px 9px;
-  background: transparent; color: var(--danger); cursor: pointer;
+  background: transparent; cursor: pointer;
   font: inherit; font-size: 12px; text-align: left;
 }
+.project-context-action { border-top: 1px solid var(--border); color: var(--fg); }
+.project-context-action:hover { background: var(--surface-2); }
+.project-context-delete { color: var(--danger); }
 .project-context-delete { border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; }
 .project-context-delete:hover { background: var(--surface-2); }
 
