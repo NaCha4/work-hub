@@ -557,7 +557,7 @@ function MonthView({
             >
               <div className="schedule-day-number">{Number(date.slice(8))}</div>
               <div className="schedule-day-items">
-                {list.slice(0, 4).map((item) => (
+                {list.map((item) => (
                   <button
                     className={`schedule-event ${scheduleTone(item, projectMap)}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}${spotlightProject && scheduleProjectKey(item, taskMap) !== spotlightProject ? ' dimmed' : ''}`}
                     key={item.id}
@@ -568,7 +568,6 @@ function MonthView({
                     <b>{item.title}</b>
                   </button>
                 ))}
-                {list.length > 4 && <span className="schedule-more">외 {list.length - 4}개</span>}
               </div>
             </div>
           )

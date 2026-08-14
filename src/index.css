@@ -469,7 +469,6 @@ a { color: var(--accent); }
 .schedule-event.continues-left { border-radius: 0 3px 3px 0; }
 .schedule-event.continues-right { border-radius: 3px 0 0 3px; }
 .schedule-event.continues-left.continues-right { border-radius: 0; }
-.schedule-more { padding-left: 6px; color: var(--muted); font-size: 10.5px; }
 
 .kind-personal { background: #f3eee8; color: #72543a; }
 .kind-work { background: #e6f0f7; color: #2f6687; }
