@@ -44,6 +44,8 @@ export interface ProjectCalendar {
   id: Id
   name: string
   color: ProjectCalendarColor
+  /** 프로젝트 패널과 일정표에서 함께 사용하는 정렬 순서 */
+  order?: number
   authorUid: string
   authorName: string
   createdAt: number

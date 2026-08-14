@@ -9,6 +9,7 @@ import {
   deleteDocById,
   deleteProjectCalendar,
   renameProjectCalendar,
+  saveProjectCalendarOrder,
   updateDocById,
   useCollection,
 } from '../lib/db'
@@ -83,6 +84,8 @@ export default function SchedulePage() {
   const [draft, setDraft] = useState<Schedule | null>(null)
   const [projectDraft, setProjectDraft] = useState<ProjectCalendar | null>(null)
   const [spotlightProject, setSpotlightProject] = useState<string | null>(null)
+  const [dragProject, setDragProject] = useState<string | null>(null)
+  const [overProject, setOverProject] = useState<string | null>(null)
 
   const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const projects = useMemo(() => {
@@ -95,9 +98,17 @@ export default function SchedulePage() {
     () => new Map(projectCalendars.map((item) => [item.name, item])),
     [projectCalendars],
   )
-  const calendarNames = useMemo(
-    () => [...new Set(projectCalendars.map((item) => item.name).concat(projects))].sort(),
-    [projectCalendars, projects],
+  const calendarNames = useMemo(() => {
+    const names = [...new Set(projectCalendars.map((item) => item.name).concat(projects))]
+    return names.sort((a, b) => {
+      const aOrder = projectMap.get(a)?.order ?? Number.MAX_SAFE_INTEGER
+      const bOrder = projectMap.get(b)?.order ?? Number.MAX_SAFE_INTEGER
+      return aOrder - bOrder || a.localeCompare(b)
+    })
+  }, [projectCalendars, projectMap, projects])
+  const projectOrder = useMemo(
+    () => new Map(calendarNames.map((name, index) => [name, index])),
+    [calendarNames],
   )
   const visible = useMemo(() => schedules.filter((item) => {
     if (kind && item.kind !== kind) return false
@@ -132,6 +143,7 @@ export default function SchedulePage() {
       id: '',
       name: '',
       color: PROJECT_COLORS[projectCalendars.length % PROJECT_COLORS.length],
+      order: calendarNames.length,
       authorUid: member!.uid,
       authorName: member!.displayName,
       createdAt: 0,
@@ -198,6 +210,26 @@ export default function SchedulePage() {
 
   function selectProject(name: string) {
     setSpotlightProject((current) => current === name ? null : name)
+  }
+
+  async function dropProject(target: string) {
+    const source = dragProject
+    setDragProject(null)
+    setOverProject(null)
+    if (!source || source === target) return
+    const next = calendarNames.filter((name) => name !== source)
+    const targetIndex = next.indexOf(target)
+    next.splice(targetIndex < 0 ? next.length : targetIndex + (calendarNames.indexOf(source) < calendarNames.indexOf(target) ? 1 : 0), 0, source)
+    await saveProjectCalendarOrder(next.map((name) => {
+      const item = projectMap.get(name)
+      return {
+        id: item?.id,
+        name,
+        color: item?.color ?? 'blue',
+        authorUid: item?.authorUid ?? member!.uid,
+        authorName: item?.authorName ?? member!.displayName,
+      }
+    }))
   }
 
   function onTaskDrop(event: DragEvent, date: string) {
@@ -288,6 +320,7 @@ export default function SchedulePage() {
               projectMap={projectMap}
               taskMap={taskMap}
               spotlightProject={spotlightProject}
+              projectOrder={projectOrder}
             />
           ) : (
             <TimelineView
@@ -296,6 +329,7 @@ export default function SchedulePage() {
               taskMap={taskMap}
               projectMap={projectMap}
               spotlightProject={spotlightProject}
+              projectOrder={projectOrder}
               onOpen={setDraft}
             />
           )}
@@ -333,6 +367,13 @@ export default function SchedulePage() {
                     onColor={(color) => changeProjectColor(name, color, calendar)}
                     onRename={() => renameProject(name, calendar?.color ?? 'blue', calendar)}
                     onRemove={() => removeProject(name, calendar?.id)}
+                    draggable
+                    dragging={dragProject === name}
+                    dragOver={overProject === name}
+                    onDragStart={() => setDragProject(name)}
+                    onDragOver={() => setOverProject(name)}
+                    onDrop={() => dropProject(name)}
+                    onDragEnd={() => { setDragProject(null); setOverProject(null) }}
                   />
                 )
               })}
@@ -394,7 +435,10 @@ function Stat({ label, value, tone = '' }: { label: string; value: number; tone?
   return <div className={`schedule-stat ${tone}`}><span>{label}</span><strong>{value}</strong></div>
 }
 
-function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRename, onRemove }: {
+function ProjectCalendarRow({
+  name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRename, onRemove,
+  draggable = false, dragging = false, dragOver = false, onDragStart, onDragOver, onDrop, onDragEnd,
+}: {
   name: string
   color: ProjectCalendarColor
   count: number
@@ -405,6 +449,13 @@ function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect,
   onColor?: (color: ProjectCalendarColor) => void
   onRename?: () => void
   onRemove?: () => void
+  draggable?: boolean
+  dragging?: boolean
+  dragOver?: boolean
+  onDragStart?: () => void
+  onDragOver?: () => void
+  onDrop?: () => void
+  onDragEnd?: () => void
 }) {
   const [context, setContext] = useState<{ x: number; y: number } | null>(null)
 
@@ -431,7 +482,23 @@ function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect,
 
   return (
     <div
-      className={`project-calendar-row${selected ? ' selected' : ''}${unfocused ? ' unfocused' : ''}`}
+      className={`project-calendar-row${selected ? ' selected' : ''}${unfocused ? ' unfocused' : ''}${dragging ? ' dragging' : ''}${dragOver ? ' drag-over' : ''}`}
+      draggable={draggable}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move'
+        onDragStart?.()
+      }}
+      onDragOver={(event) => {
+        if (!draggable) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+        onDragOver?.()
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        onDrop?.()
+      }}
+      onDragEnd={onDragEnd}
       onContextMenu={openContext}
       title={onRemove || onColor || onRename ? '우클릭하여 프로젝트 관리' : undefined}
     >
@@ -514,6 +581,15 @@ function scheduleProjectKey(item: Schedule, taskMap: Map<string, Task>) {
   return item.project || taskMap.get(item.taskId)?.project || '__none__'
 }
 
+function compareSchedules(a: Schedule, b: Schedule, taskMap: Map<string, Task>, projectOrder: Map<string, number>) {
+  const aProject = scheduleProjectKey(a, taskMap)
+  const bProject = scheduleProjectKey(b, taskMap)
+  const aOrder = aProject === '__none__' ? -1 : projectOrder.get(aProject) ?? Number.MAX_SAFE_INTEGER
+  const bOrder = bProject === '__none__' ? -1 : projectOrder.get(bProject) ?? Number.MAX_SAFE_INTEGER
+  return aOrder - bOrder
+    || `${a.startDate}${a.startTime}${a.title}`.localeCompare(`${b.startDate}${b.startTime}${b.title}`)
+}
+
 interface MonthProps {
   month: string
   items: Schedule[]
@@ -523,10 +599,11 @@ interface MonthProps {
   projectMap: Map<string, ProjectCalendar>
   taskMap: Map<string, Task>
   spotlightProject: string | null
+  projectOrder: Map<string, number>
 }
 
 function MonthView({
-  month, items, onOpen, onAdd, onTaskDrop, projectMap, taskMap, spotlightProject,
+  month, items, onOpen, onAdd, onTaskDrop, projectMap, taskMap, spotlightProject, projectOrder,
 }: MonthProps) {
   const [year, value] = month.split('-').map(Number)
   const first = new Date(year, value - 1, 1)
@@ -546,7 +623,7 @@ function MonthView({
         {cells.map((date) => {
           const list = items
             .filter((item) => item.startDate <= date && item.endDate >= date)
-            .sort((a, b) => `${a.startTime}${a.title}`.localeCompare(`${b.startTime}${b.title}`))
+            .sort((a, b) => compareSchedules(a, b, taskMap, projectOrder))
           return (
             <div
               className={`schedule-day${date.slice(0, 7) !== month ? ' outside' : ''}${date === today() ? ' today' : ''}`}
@@ -577,12 +654,13 @@ function MonthView({
   )
 }
 
-function TimelineView({ month, items, taskMap, projectMap, spotlightProject, onOpen }: {
+function TimelineView({ month, items, taskMap, projectMap, spotlightProject, projectOrder, onOpen }: {
   month: string
   items: Schedule[]
   taskMap: Map<string, Task>
   projectMap: Map<string, ProjectCalendar>
   spotlightProject: string | null
+  projectOrder: Map<string, number>
   onOpen: (item: Schedule) => void
 }) {
   const [year, value] = month.split('-').map(Number)
@@ -591,9 +669,7 @@ function TimelineView({ month, items, taskMap, projectMap, spotlightProject, onO
   const lastDate = `${month}-${String(last).padStart(2, '0')}`
   const rows = items
     .filter((item) => item.startDate <= lastDate && item.endDate >= firstDate)
-    .sort((a, b) => (a.taskId ? taskMap.get(a.taskId)?.title : a.title)?.localeCompare(
-      b.taskId ? taskMap.get(b.taskId)?.title ?? b.title : b.title,
-    ) ?? 0)
+    .sort((a, b) => compareSchedules(a, b, taskMap, projectOrder))
 
   if (rows.length === 0) return <div className="empty">이 달에 표시할 일정이 없습니다.</div>
 

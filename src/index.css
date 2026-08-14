@@ -506,6 +506,9 @@ a { color: var(--accent); }
 .project-calendar-row { border-radius: 6px; transition: opacity 140ms ease, background 140ms ease; }
 .project-calendar-row.selected { background: var(--accent-soft); }
 .project-calendar-row.unfocused { opacity: 0.48; }
+.project-calendar-row[draggable='true'] { cursor: grab; }
+.project-calendar-row.dragging { opacity: 0.28; }
+.project-calendar-row.drag-over { box-shadow: inset 0 -2px 0 var(--accent); }
 .project-calendar-toggle {
   min-width: 0; width: 100%; display: flex; align-items: center; gap: 7px;
   border: 0; padding: 0 4px; background: transparent; color: inherit;

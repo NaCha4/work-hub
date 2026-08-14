@@ -151,3 +151,34 @@ export async function renameProjectCalendar(
     await batch.commit()
   }
 }
+
+/** 패널에서 정한 프로젝트 순서를 저장한다. 설정이 없던 기존 프로젝트도 이때 설정을 만든다. */
+export async function saveProjectCalendarOrder(items: Array<{
+  id?: string
+  name: string
+  color: string
+  authorUid: string
+  authorName: string
+}>) {
+  const now = Date.now()
+  for (let from = 0; from < items.length; from += 450) {
+    const batch = writeBatch(db)
+    for (const [offset, item] of items.slice(from, from + 450).entries()) {
+      const order = from + offset
+      if (item.id) {
+        batch.update(doc(db, 'scheduleProjects', item.id), { order, updatedAt: now })
+      } else {
+        batch.set(doc(collection(db, 'scheduleProjects')), {
+          name: item.name,
+          color: item.color,
+          order,
+          authorUid: item.authorUid,
+          authorName: item.authorName,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+    }
+    await batch.commit()
+  }
+}
