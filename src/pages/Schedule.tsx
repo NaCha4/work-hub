@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
@@ -150,15 +150,15 @@ export default function SchedulePage() {
     await updateDocById('scheduleProjects', item.id, { color })
   }
 
-  async function removeProject(item: ProjectCalendar) {
-    const linkedSchedules = schedules.filter((schedule) => schedule.project === item.name)
-    const linkedTasks = tasks.filter((task) => task.project === item.name)
+  async function removeProject(name: string, projectId?: string) {
+    const linkedSchedules = schedules.filter((schedule) => schedule.project === name)
+    const linkedTasks = tasks.filter((task) => task.project === name)
     const impact = linkedSchedules.length || linkedTasks.length
       ? `\n연결된 일정 ${linkedSchedules.length}개와 업무 ${linkedTasks.length}개는 삭제하지 않고 미지정으로 옮깁니다.`
       : ''
-    if (!confirm(`"${item.name}" 프로젝트 캘린더를 삭제할까요?${impact}`)) return
+    if (!confirm(`"${name}" 프로젝트 캘린더를 삭제할까요?${impact}`)) return
     await deleteProjectCalendar(
-      item.id,
+      projectId,
       linkedSchedules.map((schedule) => schedule.id),
       linkedTasks.map((task) => task.id),
     )
@@ -273,7 +273,7 @@ export default function SchedulePage() {
               <span className="spacer" />
               <button className="btn ghost sm" onClick={() => setProjectDraft(newProject())}>+ 프로젝트</button>
             </div>
-            <p>각 프로젝트를 별도 캘린더처럼 켜고 끌 수 있습니다.</p>
+            <p>프로젝트를 켜고 끌 수 있으며, 우클릭하면 삭제할 수 있습니다.</p>
             <div className="project-calendar-list">
               <ProjectCalendarRow
                 name="개인 및 미지정"
@@ -295,7 +295,7 @@ export default function SchedulePage() {
                     onToggle={() => toggleProject(name)}
                     onAdd={() => openNew(today(), undefined, name)}
                     onColor={calendar ? (color) => changeProjectColor(calendar, color) : undefined}
-                    onRemove={calendar ? () => removeProject(calendar) : undefined}
+                    onRemove={() => removeProject(name, calendar?.id)}
                   />
                 )
               })}
@@ -368,8 +368,35 @@ function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onCo
   onColor?: (color: ProjectCalendarColor) => void
   onRemove?: () => void
 }) {
+  const [context, setContext] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!context) return
+    const close = () => setContext(null)
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && close()
+    document.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [context])
+
+  function openContext(event: ReactMouseEvent) {
+    if (!onRemove) return
+    event.preventDefault()
+    setContext({
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 170)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 48)),
+    })
+  }
+
   return (
-    <div className={`project-calendar-row${visible ? '' : ' hidden'}`}>
+    <div
+      className={`project-calendar-row${visible ? '' : ' hidden'}`}
+      onContextMenu={openContext}
+      title={onRemove ? '우클릭하여 프로젝트 관리' : undefined}
+    >
       <label className="project-calendar-toggle">
         <input type="checkbox" checked={visible} onChange={onToggle} />
         <span className={`project-calendar-dot project-${color}`} />
@@ -387,7 +414,24 @@ function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onCo
           {PROJECT_COLORS.map((value) => <option value={value} key={value}>{colorLabel(value)}</option>)}
         </select>
       )}
-      {onRemove && <button className="project-calendar-remove" onClick={onRemove} aria-label={`${name} 삭제`}>삭제</button>}
+      {context && onRemove && (
+        <div
+          className="project-context-menu"
+          role="menu"
+          style={{ left: context.x, top: context.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <button
+            role="menuitem"
+            onClick={() => {
+              setContext(null)
+              onRemove()
+            }}
+          >
+            프로젝트 삭제
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -519,7 +519,7 @@ a { color: var(--accent); }
 .project-calendar-row.hidden .project-calendar-dot { background: transparent; }
 .project-calendar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .project-calendar-count { margin-left: auto; color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
-.project-calendar-add, .project-calendar-remove {
+.project-calendar-add {
   border: 0; border-radius: 5px; background: transparent; color: var(--muted);
   cursor: pointer; font: inherit; font-size: 12px;
 }
@@ -531,10 +531,17 @@ a { color: var(--accent); }
   background: transparent; color: var(--muted); font-size: 10.5px; cursor: pointer;
 }
 .project-color-select:hover { border-color: var(--border); background: var(--surface-2); }
-.project-calendar-remove {
-  grid-column: 2; grid-row: 2; padding: 2px; font-size: 10px;
+.project-context-menu {
+  position: fixed; z-index: 80; width: 160px; padding: 4px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); box-shadow: var(--shadow);
 }
-.project-calendar-remove:hover { color: var(--danger); }
+.project-context-menu button {
+  width: 100%; border: 0; border-radius: 5px; padding: 7px 9px;
+  background: transparent; color: var(--danger); cursor: pointer;
+  font: inherit; font-size: 12px; text-align: left;
+}
+.project-context-menu button:hover { background: var(--surface-2); }
 
 .project-color-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .project-color-option {

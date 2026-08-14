@@ -94,7 +94,7 @@ export async function deleteDocById(name: CollectionName, id: string) {
  * Firestore 배치 상한보다 여유 있게 450개씩 나눠 처리하고 마지막 배치에서 설정을 지운다.
  */
 export async function deleteProjectCalendar(
-  projectId: string,
+  projectId: string | undefined,
   scheduleIds: string[],
   taskIds: string[],
 ) {
@@ -102,6 +102,7 @@ export async function deleteProjectCalendar(
     ...scheduleIds.map((id) => doc(db, 'schedules', id)),
     ...taskIds.map((id) => doc(db, 'tasks', id)),
   ]
+  if (!projectId && refs.length === 0) return
   const chunks = refs.length ? Math.ceil(refs.length / 450) : 1
   const now = Date.now()
 
@@ -110,7 +111,7 @@ export async function deleteProjectCalendar(
     for (const ref of refs.slice(index * 450, (index + 1) * 450)) {
       batch.update(ref, { project: '', updatedAt: now })
     }
-    if (index === chunks - 1) batch.delete(doc(db, 'scheduleProjects', projectId))
+    if (projectId && index === chunks - 1) batch.delete(doc(db, 'scheduleProjects', projectId))
     await batch.commit()
   }
 }
