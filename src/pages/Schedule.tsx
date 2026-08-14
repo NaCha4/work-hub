@@ -75,7 +75,7 @@ export default function SchedulePage() {
   const [kind, setKind] = useState<ScheduleKind | ''>('')
   const [draft, setDraft] = useState<Schedule | null>(null)
   const [projectDraft, setProjectDraft] = useState<ProjectCalendar | null>(null)
-  const [hiddenProjects, setHiddenProjects] = useState<Set<string>>(() => new Set())
+  const [spotlightProject, setSpotlightProject] = useState<string | null>(null)
 
   const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const projects = useMemo(() => {
@@ -94,10 +94,8 @@ export default function SchedulePage() {
   )
   const visible = useMemo(() => schedules.filter((item) => {
     if (kind && item.kind !== kind) return false
-    const itemProject = item.project || taskMap.get(item.taskId)?.project || ''
-    if (hiddenProjects.has(itemProject || '__none__')) return false
     return true
-  }), [hiddenProjects, kind, schedules, taskMap])
+  }), [kind, schedules])
   const openTasks = tasks.filter((task) => task.status !== 'done')
   const scheduledTaskIds = new Set(schedules.map((item) => item.taskId).filter(Boolean))
   const unscheduled = openTasks.filter((task) => !scheduledTaskIds.has(task.id))
@@ -173,13 +171,8 @@ export default function SchedulePage() {
     )
   }
 
-  function toggleProject(name: string) {
-    setHiddenProjects((current) => {
-      const next = new Set(current)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
-    })
+  function selectProject(name: string) {
+    setSpotlightProject((current) => current === name ? null : name)
   }
 
   function onTaskDrop(event: DragEvent, date: string) {
@@ -269,9 +262,18 @@ export default function SchedulePage() {
               onAdd={openNew}
               onTaskDrop={onTaskDrop}
               projectMap={projectMap}
+              taskMap={taskMap}
+              spotlightProject={spotlightProject}
             />
           ) : (
-            <TimelineView month={month} items={visible} taskMap={taskMap} projectMap={projectMap} onOpen={setDraft} />
+            <TimelineView
+              month={month}
+              items={visible}
+              taskMap={taskMap}
+              projectMap={projectMap}
+              spotlightProject={spotlightProject}
+              onOpen={setDraft}
+            />
           )}
         </section>
 
@@ -282,14 +284,14 @@ export default function SchedulePage() {
               <span className="spacer" />
               <button className="btn ghost sm" onClick={() => setProjectDraft(newProject())}>+ 프로젝트</button>
             </div>
-            <p>프로젝트를 켜고 끌 수 있으며, 우클릭하면 색상 변경과 삭제를 할 수 있습니다.</p>
             <div className="project-calendar-list">
               <ProjectCalendarRow
                 name="개인 및 미지정"
                 color="clay"
                 count={schedules.filter((item) => !item.project).length}
-                visible={!hiddenProjects.has('__none__')}
-                onToggle={() => toggleProject('__none__')}
+                selected={spotlightProject === '__none__'}
+                unfocused={spotlightProject !== null && spotlightProject !== '__none__'}
+                onSelect={() => selectProject('__none__')}
                 onAdd={() => openNew(today())}
               />
               {calendarNames.map((name) => {
@@ -300,8 +302,9 @@ export default function SchedulePage() {
                     name={name}
                     color={calendar?.color ?? 'blue'}
                     count={schedules.filter((item) => item.project === name).length}
-                    visible={!hiddenProjects.has(name)}
-                    onToggle={() => toggleProject(name)}
+                    selected={spotlightProject === name}
+                    unfocused={spotlightProject !== null && spotlightProject !== name}
+                    onSelect={() => selectProject(name)}
                     onAdd={() => openNew(today(), undefined, name)}
                     onColor={(color) => changeProjectColor(name, color, calendar)}
                     onRemove={() => removeProject(name, calendar?.id)}
@@ -367,12 +370,13 @@ function Stat({ label, value, tone = '' }: { label: string; value: number; tone?
   return <div className={`schedule-stat ${tone}`}><span>{label}</span><strong>{value}</strong></div>
 }
 
-function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onColor, onRemove }: {
+function ProjectCalendarRow({ name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRemove }: {
   name: string
   color: ProjectCalendarColor
   count: number
-  visible: boolean
-  onToggle: () => void
+  selected: boolean
+  unfocused: boolean
+  onSelect: () => void
   onAdd: () => void
   onColor?: (color: ProjectCalendarColor) => void
   onRemove?: () => void
@@ -402,16 +406,15 @@ function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onCo
 
   return (
     <div
-      className={`project-calendar-row${visible ? '' : ' hidden'}`}
+      className={`project-calendar-row${selected ? ' selected' : ''}${unfocused ? ' unfocused' : ''}`}
       onContextMenu={openContext}
       title={onRemove || onColor ? '우클릭하여 프로젝트 관리' : undefined}
     >
-      <label className="project-calendar-toggle">
-        <input type="checkbox" checked={visible} onChange={onToggle} />
+      <button className="project-calendar-toggle" onClick={onSelect} aria-pressed={selected}>
         <span className={`project-calendar-dot project-${color}`} />
         <span className="project-calendar-name">{name}</span>
         <span className="project-calendar-count">{count}</span>
-      </label>
+      </button>
       <button className="project-calendar-add" onClick={onAdd} title={`${name} 일정 추가`} aria-label={`${name} 일정 추가`}>+</button>
       {context && (onColor || onRemove) && (
         <div
@@ -470,6 +473,10 @@ function scheduleTone(item: Schedule, projectMap: Map<string, ProjectCalendar>) 
   return color ? `project-${color}` : `kind-${item.kind}`
 }
 
+function scheduleProjectKey(item: Schedule, taskMap: Map<string, Task>) {
+  return item.project || taskMap.get(item.taskId)?.project || '__none__'
+}
+
 interface MonthProps {
   month: string
   items: Schedule[]
@@ -477,9 +484,13 @@ interface MonthProps {
   onAdd: (date: string) => void
   onTaskDrop: (event: DragEvent, date: string) => void
   projectMap: Map<string, ProjectCalendar>
+  taskMap: Map<string, Task>
+  spotlightProject: string | null
 }
 
-function MonthView({ month, items, onOpen, onAdd, onTaskDrop, projectMap }: MonthProps) {
+function MonthView({
+  month, items, onOpen, onAdd, onTaskDrop, projectMap, taskMap, spotlightProject,
+}: MonthProps) {
   const [year, value] = month.split('-').map(Number)
   const first = new Date(year, value - 1, 1)
   const start = new Date(year, value - 1, 1 - first.getDay())
@@ -511,7 +522,7 @@ function MonthView({ month, items, onOpen, onAdd, onTaskDrop, projectMap }: Mont
               <div className="schedule-day-items">
                 {list.slice(0, 4).map((item) => (
                   <button
-                    className={`schedule-event ${scheduleTone(item, projectMap)}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}`}
+                    className={`schedule-event ${scheduleTone(item, projectMap)}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}${spotlightProject && scheduleProjectKey(item, taskMap) !== spotlightProject ? ' dimmed' : ''}`}
                     key={item.id}
                     title={item.title}
                     onClick={(event) => { event.stopPropagation(); onOpen(item) }}
@@ -530,11 +541,12 @@ function MonthView({ month, items, onOpen, onAdd, onTaskDrop, projectMap }: Mont
   )
 }
 
-function TimelineView({ month, items, taskMap, projectMap, onOpen }: {
+function TimelineView({ month, items, taskMap, projectMap, spotlightProject, onOpen }: {
   month: string
   items: Schedule[]
   taskMap: Map<string, Task>
   projectMap: Map<string, ProjectCalendar>
+  spotlightProject: string | null
   onOpen: (item: Schedule) => void
 }) {
   const [year, value] = month.split('-').map(Number)
@@ -568,7 +580,10 @@ function TimelineView({ month, items, taskMap, projectMap, onOpen }: {
         const span = daysBetween(clippedStart, clippedEnd) + 1
         const task = taskMap.get(item.taskId)
         return (
-          <div className="timeline-row" key={item.id}>
+          <div
+            className={`timeline-row${spotlightProject && scheduleProjectKey(item, taskMap) !== spotlightProject ? ' dimmed' : ''}`}
+            key={item.id}
+          >
             <button className="timeline-label timeline-name" onClick={() => onOpen(item)}>
               <b>{task?.title ?? item.title}</b>
               <span>{item.project || task?.project || SCHEDULE_KIND_LABEL[item.kind]}</span>
