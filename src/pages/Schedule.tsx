@@ -146,8 +146,17 @@ export default function SchedulePage() {
     setProjectDraft(null)
   }
 
-  async function changeProjectColor(item: ProjectCalendar, color: ProjectCalendarColor) {
-    await updateDocById('scheduleProjects', item.id, { color })
+  async function changeProjectColor(name: string, color: ProjectCalendarColor, item?: ProjectCalendar) {
+    if (item) {
+      await updateDocById('scheduleProjects', item.id, { color })
+      return
+    }
+    await createDoc('scheduleProjects', {
+      name,
+      color,
+      authorUid: member!.uid,
+      authorName: member!.displayName,
+    })
   }
 
   async function removeProject(name: string, projectId?: string) {
@@ -273,7 +282,7 @@ export default function SchedulePage() {
               <span className="spacer" />
               <button className="btn ghost sm" onClick={() => setProjectDraft(newProject())}>+ 프로젝트</button>
             </div>
-            <p>프로젝트를 켜고 끌 수 있으며, 우클릭하면 삭제할 수 있습니다.</p>
+            <p>프로젝트를 켜고 끌 수 있으며, 우클릭하면 색상 변경과 삭제를 할 수 있습니다.</p>
             <div className="project-calendar-list">
               <ProjectCalendarRow
                 name="개인 및 미지정"
@@ -294,7 +303,7 @@ export default function SchedulePage() {
                     visible={!hiddenProjects.has(name)}
                     onToggle={() => toggleProject(name)}
                     onAdd={() => openNew(today(), undefined, name)}
-                    onColor={calendar ? (color) => changeProjectColor(calendar, color) : undefined}
+                    onColor={(color) => changeProjectColor(name, color, calendar)}
                     onRemove={() => removeProject(name, calendar?.id)}
                   />
                 )
@@ -383,11 +392,11 @@ function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onCo
   }, [context])
 
   function openContext(event: ReactMouseEvent) {
-    if (!onRemove) return
+    if (!onRemove && !onColor) return
     event.preventDefault()
     setContext({
-      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 170)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 48)),
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 194)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 132)),
     })
   }
 
@@ -395,7 +404,7 @@ function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onCo
     <div
       className={`project-calendar-row${visible ? '' : ' hidden'}`}
       onContextMenu={openContext}
-      title={onRemove ? '우클릭하여 프로젝트 관리' : undefined}
+      title={onRemove || onColor ? '우클릭하여 프로젝트 관리' : undefined}
     >
       <label className="project-calendar-toggle">
         <input type="checkbox" checked={visible} onChange={onToggle} />
@@ -404,32 +413,45 @@ function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onCo
         <span className="project-calendar-count">{count}</span>
       </label>
       <button className="project-calendar-add" onClick={onAdd} title={`${name} 일정 추가`} aria-label={`${name} 일정 추가`}>+</button>
-      {onColor && (
-        <select
-          className="project-color-select"
-          value={color}
-          onChange={(event) => onColor(event.target.value as ProjectCalendarColor)}
-          aria-label={`${name} 색상`}
-        >
-          {PROJECT_COLORS.map((value) => <option value={value} key={value}>{colorLabel(value)}</option>)}
-        </select>
-      )}
-      {context && onRemove && (
+      {context && (onColor || onRemove) && (
         <div
           className="project-context-menu"
           role="menu"
           style={{ left: context.x, top: context.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <button
-            role="menuitem"
-            onClick={() => {
-              setContext(null)
-              onRemove()
-            }}
-          >
-            프로젝트 삭제
-          </button>
+          {onColor && (
+            <>
+              <span className="project-context-label">색상 변경</span>
+              <div className="project-context-colors">
+                {PROJECT_COLORS.map((value) => (
+                  <button
+                    className={`project-context-color project-${value}${color === value ? ' active' : ''}`}
+                    key={value}
+                    role="menuitem"
+                    title={colorLabel(value)}
+                    aria-label={`${colorLabel(value)}으로 변경`}
+                    onClick={() => {
+                      setContext(null)
+                      onColor(value)
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+          {onRemove && (
+            <button
+              className="project-context-delete"
+              role="menuitem"
+              onClick={() => {
+                setContext(null)
+                onRemove()
+              }}
+            >
+              프로젝트 삭제
+            </button>
+          )}
         </div>
       )}
     </div>

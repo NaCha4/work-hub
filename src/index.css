@@ -525,23 +525,28 @@ a { color: var(--accent); }
 }
 .project-calendar-add { width: 24px; height: 24px; padding: 0; font-size: 16px; }
 .project-calendar-add:hover { background: var(--surface-2); color: var(--fg); }
-.project-color-select {
-  grid-column: 1; width: 72px; margin-left: 29px; padding: 2px 4px;
-  border: 1px solid transparent; border-radius: 5px;
-  background: transparent; color: var(--muted); font-size: 10.5px; cursor: pointer;
-}
-.project-color-select:hover { border-color: var(--border); background: var(--surface-2); }
 .project-context-menu {
-  position: fixed; z-index: 80; width: 160px; padding: 4px;
+  position: fixed; z-index: 80; width: 184px; padding: 7px;
   border: 1px solid var(--border); border-radius: 8px;
   background: var(--surface); box-shadow: var(--shadow);
 }
-.project-context-menu button {
+.project-context-label {
+  display: block; padding: 2px 3px 6px; color: var(--muted);
+  font-size: 10.5px; font-weight: 700;
+}
+.project-context-colors { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; padding: 0 2px 8px; }
+.project-context-color {
+  width: 20px; height: 20px; border: 1px solid currentColor;
+  border-radius: 5px; cursor: pointer;
+}
+.project-context-color:hover, .project-context-color.active { outline: 2px solid currentColor; outline-offset: 1px; }
+.project-context-delete {
   width: 100%; border: 0; border-radius: 5px; padding: 7px 9px;
   background: transparent; color: var(--danger); cursor: pointer;
   font: inherit; font-size: 12px; text-align: left;
 }
-.project-context-menu button:hover { background: var(--surface-2); }
+.project-context-delete { border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; }
+.project-context-delete:hover { background: var(--surface-2); }
 
 .project-color-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .project-color-option {
