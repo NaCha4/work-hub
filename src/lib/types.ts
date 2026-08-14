@@ -37,6 +37,18 @@ export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export type ScheduleKind = 'personal' | 'work' | 'meeting' | 'focus' | 'deadline'
+export type ProjectCalendarColor = 'clay' | 'blue' | 'green' | 'violet' | 'yellow' | 'red'
+
+/** 일정 화면에서 켜고 끄는 프로젝트 캘린더 설정. */
+export interface ProjectCalendar {
+  id: Id
+  name: string
+  color: ProjectCalendarColor
+  authorUid: string
+  authorName: string
+  createdAt: number
+  updatedAt: number
+}
 
 /** 달력에 놓는 일정. 업무와 개인 약속을 한 화면에서 보되 업무는 할 일과 연결할 수 있다. */
 export interface Schedule {

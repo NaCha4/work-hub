@@ -9,12 +9,15 @@ import { nowTime, today } from '../lib/markdown'
 import {
   SCHEDULE_KIND_LABEL,
   TASK_PRIORITY_LABEL,
+  type ProjectCalendar,
+  type ProjectCalendarColor,
   type Schedule,
   type ScheduleKind,
   type Task,
 } from '../lib/types'
 
 const KINDS: ScheduleKind[] = ['personal', 'work', 'meeting', 'focus', 'deadline']
+const PROJECT_COLORS: ProjectCalendarColor[] = ['clay', 'blue', 'green', 'violet', 'yellow', 'red']
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 const DAY_MS = 86400000
 
@@ -40,7 +43,7 @@ function daysBetween(from: string, to: string) {
   return Math.round((dateAt(to).getTime() - dateAt(from).getTime()) / DAY_MS)
 }
 
-function blank(uid: string, name: string, date = today(), task?: Task): Schedule {
+function blank(uid: string, name: string, date = today(), task?: Task, project = ''): Schedule {
   return {
     id: '',
     title: task?.title ?? '',
@@ -51,7 +54,7 @@ function blank(uid: string, name: string, date = today(), task?: Task): Schedule
     endTime: task ? '10:00' : '',
     allDay: false,
     taskId: task?.id ?? '',
-    project: task?.project ?? '',
+    project: task?.project || project,
     location: '',
     notes: '',
     authorUid: uid,
@@ -66,11 +69,13 @@ export default function SchedulePage() {
   const location = useLocation()
   const { items: schedules, loading, error } = useCollection<Schedule>('schedules', !!member)
   const { items: tasks } = useCollection<Task>('tasks', !!member)
+  const { items: projectCalendars, error: projectError } = useCollection<ProjectCalendar>('scheduleProjects', !!member)
   const [month, setMonth] = useState(() => today().slice(0, 7))
   const [view, setView] = useState<View>('month')
   const [kind, setKind] = useState<ScheduleKind | ''>('')
-  const [project, setProject] = useState('')
   const [draft, setDraft] = useState<Schedule | null>(null)
+  const [projectDraft, setProjectDraft] = useState<ProjectCalendar | null>(null)
+  const [hiddenProjects, setHiddenProjects] = useState<Set<string>>(() => new Set())
 
   const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const projects = useMemo(() => {
@@ -79,11 +84,20 @@ export default function SchedulePage() {
       .filter(Boolean)
     return [...new Set(values)].sort()
   }, [schedules, tasks])
+  const projectMap = useMemo(
+    () => new Map(projectCalendars.map((item) => [item.name, item])),
+    [projectCalendars],
+  )
+  const calendarNames = useMemo(
+    () => [...new Set(projectCalendars.map((item) => item.name).concat(projects))].sort(),
+    [projectCalendars, projects],
+  )
   const visible = useMemo(() => schedules.filter((item) => {
     if (kind && item.kind !== kind) return false
-    if (project && (item.project || taskMap.get(item.taskId)?.project) !== project) return false
+    const itemProject = item.project || taskMap.get(item.taskId)?.project || ''
+    if (hiddenProjects.has(itemProject || '__none__')) return false
     return true
-  }), [kind, project, schedules, taskMap])
+  }), [hiddenProjects, kind, schedules, taskMap])
   const openTasks = tasks.filter((task) => task.status !== 'done')
   const scheduledTaskIds = new Set(schedules.map((item) => item.taskId).filter(Boolean))
   const unscheduled = openTasks.filter((task) => !scheduledTaskIds.has(task.id))
@@ -104,8 +118,53 @@ export default function SchedulePage() {
     setMonth(ymd(new Date(year, value - 1 + delta, 1)).slice(0, 7))
   }
 
-  function openNew(date = today(), task?: Task) {
-    setDraft(blank(member!.uid, member!.displayName, date, task))
+  function openNew(date = today(), task?: Task, project = '') {
+    setDraft(blank(member!.uid, member!.displayName, date, task, project))
+  }
+
+  function newProject(): ProjectCalendar {
+    return {
+      id: '',
+      name: '',
+      color: PROJECT_COLORS[projectCalendars.length % PROJECT_COLORS.length],
+      authorUid: member!.uid,
+      authorName: member!.displayName,
+      createdAt: 0,
+      updatedAt: 0,
+    }
+  }
+
+  async function saveProject() {
+    if (!projectDraft) return
+    const name = projectDraft.name.trim()
+    if (!name) return alert('프로젝트 이름을 입력해 주세요.')
+    if (projectCalendars.some((value) => value.name.toLowerCase() === name.toLowerCase())) {
+      return alert('같은 이름의 프로젝트가 이미 있습니다.')
+    }
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = { ...projectDraft, name }
+    await createDoc('scheduleProjects', data)
+    setProjectDraft(null)
+  }
+
+  async function changeProjectColor(item: ProjectCalendar, color: ProjectCalendarColor) {
+    await updateDocById('scheduleProjects', item.id, { color })
+  }
+
+  async function removeProject(item: ProjectCalendar) {
+    const used = schedules.some((schedule) => schedule.project === item.name)
+      || tasks.some((task) => task.project === item.name)
+    if (used) return alert('연결된 일정이나 업무가 있어 삭제할 수 없습니다.')
+    if (!confirm(`"${item.name}" 프로젝트 캘린더를 삭제할까요?`)) return
+    await deleteDocById('scheduleProjects', item.id)
+  }
+
+  function toggleProject(name: string) {
+    setHiddenProjects((current) => {
+      const next = new Set(current)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
   }
 
   function onTaskDrop(event: DragEvent, date: string) {
@@ -159,7 +218,7 @@ export default function SchedulePage() {
         </button>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {(error || projectError) && <div className="error-banner">{error || projectError}</div>}
 
       <div className="schedule-stats">
         <Stat label="이번 달 일정" value={inMonth.length} />
@@ -183,10 +242,6 @@ export default function SchedulePage() {
           <option value="">모든 구분</option>
           {KINDS.map((value) => <option value={value} key={value}>{SCHEDULE_KIND_LABEL[value]}</option>)}
         </select>
-        <select className="select" value={project} onChange={(e) => setProject(e.target.value)}>
-          <option value="">모든 프로젝트</option>
-          {projects.map((value) => <option value={value} key={value}>{value}</option>)}
-        </select>
       </div>
 
       <div className="schedule-workspace">
@@ -198,13 +253,50 @@ export default function SchedulePage() {
               onOpen={setDraft}
               onAdd={openNew}
               onTaskDrop={onTaskDrop}
+              projectMap={projectMap}
             />
           ) : (
-            <TimelineView month={month} items={visible} taskMap={taskMap} onOpen={setDraft} />
+            <TimelineView month={month} items={visible} taskMap={taskMap} projectMap={projectMap} onOpen={setDraft} />
           )}
         </section>
 
-        <aside className="schedule-backlog card">
+        <aside className="schedule-side">
+          <section className="schedule-calendars card">
+            <div className="card-head">
+              <h3>프로젝트 캘린더</h3>
+              <span className="spacer" />
+              <button className="btn ghost sm" onClick={() => setProjectDraft(newProject())}>+ 프로젝트</button>
+            </div>
+            <p>각 프로젝트를 별도 캘린더처럼 켜고 끌 수 있습니다.</p>
+            <div className="project-calendar-list">
+              <ProjectCalendarRow
+                name="개인 및 미지정"
+                color="clay"
+                count={schedules.filter((item) => !item.project).length}
+                visible={!hiddenProjects.has('__none__')}
+                onToggle={() => toggleProject('__none__')}
+                onAdd={() => openNew(today())}
+              />
+              {calendarNames.map((name) => {
+                const calendar = projectMap.get(name)
+                return (
+                  <ProjectCalendarRow
+                    key={name}
+                    name={name}
+                    color={calendar?.color ?? 'blue'}
+                    count={schedules.filter((item) => item.project === name).length}
+                    visible={!hiddenProjects.has(name)}
+                    onToggle={() => toggleProject(name)}
+                    onAdd={() => openNew(today(), undefined, name)}
+                    onColor={calendar ? (color) => changeProjectColor(calendar, color) : undefined}
+                    onRemove={calendar ? () => removeProject(calendar) : undefined}
+                  />
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="schedule-backlog card">
           <div className="card-head">
             <h3>배정할 업무</h3>
             <span className="schedule-count">{unscheduled.length}</span>
@@ -229,6 +321,7 @@ export default function SchedulePage() {
               </button>
             ))}
           </div>
+          </section>
         </aside>
       </div>
 
@@ -236,11 +329,19 @@ export default function SchedulePage() {
         <ScheduleModal
           draft={draft}
           tasks={openTasks}
-          projects={projects}
+          projects={calendarNames}
           onChange={setDraft}
           onSave={save}
           onRemove={draft.id ? () => remove(draft) : undefined}
           onClose={() => setDraft(null)}
+        />
+      )}
+      {projectDraft && (
+        <ProjectModal
+          draft={projectDraft}
+          onChange={setProjectDraft}
+          onSave={saveProject}
+          onClose={() => setProjectDraft(null)}
         />
       )}
     </div>
@@ -251,15 +352,62 @@ function Stat({ label, value, tone = '' }: { label: string; value: number; tone?
   return <div className={`schedule-stat ${tone}`}><span>{label}</span><strong>{value}</strong></div>
 }
 
+function ProjectCalendarRow({ name, color, count, visible, onToggle, onAdd, onColor, onRemove }: {
+  name: string
+  color: ProjectCalendarColor
+  count: number
+  visible: boolean
+  onToggle: () => void
+  onAdd: () => void
+  onColor?: (color: ProjectCalendarColor) => void
+  onRemove?: () => void
+}) {
+  return (
+    <div className={`project-calendar-row${visible ? '' : ' hidden'}`}>
+      <label className="project-calendar-toggle">
+        <input type="checkbox" checked={visible} onChange={onToggle} />
+        <span className={`project-calendar-dot project-${color}`} />
+        <span className="project-calendar-name">{name}</span>
+        <span className="project-calendar-count">{count}</span>
+      </label>
+      <button className="project-calendar-add" onClick={onAdd} title={`${name} 일정 추가`} aria-label={`${name} 일정 추가`}>+</button>
+      {onColor && (
+        <select
+          className="project-color-select"
+          value={color}
+          onChange={(event) => onColor(event.target.value as ProjectCalendarColor)}
+          aria-label={`${name} 색상`}
+        >
+          {PROJECT_COLORS.map((value) => <option value={value} key={value}>{colorLabel(value)}</option>)}
+        </select>
+      )}
+      {onRemove && <button className="project-calendar-remove" onClick={onRemove} aria-label={`${name} 삭제`}>삭제</button>}
+    </div>
+  )
+}
+
+function colorLabel(color: ProjectCalendarColor) {
+  const labels: Record<ProjectCalendarColor, string> = {
+    clay: '갈색', blue: '파랑', green: '초록', violet: '보라', yellow: '노랑', red: '빨강',
+  }
+  return labels[color]
+}
+
+function scheduleTone(item: Schedule, projectMap: Map<string, ProjectCalendar>) {
+  const color = item.project ? projectMap.get(item.project)?.color : undefined
+  return color ? `project-${color}` : `kind-${item.kind}`
+}
+
 interface MonthProps {
   month: string
   items: Schedule[]
   onOpen: (item: Schedule) => void
   onAdd: (date: string) => void
   onTaskDrop: (event: DragEvent, date: string) => void
+  projectMap: Map<string, ProjectCalendar>
 }
 
-function MonthView({ month, items, onOpen, onAdd, onTaskDrop }: MonthProps) {
+function MonthView({ month, items, onOpen, onAdd, onTaskDrop, projectMap }: MonthProps) {
   const [year, value] = month.split('-').map(Number)
   const first = new Date(year, value - 1, 1)
   const start = new Date(year, value - 1, 1 - first.getDay())
@@ -291,7 +439,7 @@ function MonthView({ month, items, onOpen, onAdd, onTaskDrop }: MonthProps) {
               <div className="schedule-day-items">
                 {list.slice(0, 4).map((item) => (
                   <button
-                    className={`schedule-event kind-${item.kind}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}`}
+                    className={`schedule-event ${scheduleTone(item, projectMap)}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}`}
                     key={item.id}
                     title={item.title}
                     onClick={(event) => { event.stopPropagation(); onOpen(item) }}
@@ -310,10 +458,11 @@ function MonthView({ month, items, onOpen, onAdd, onTaskDrop }: MonthProps) {
   )
 }
 
-function TimelineView({ month, items, taskMap, onOpen }: {
+function TimelineView({ month, items, taskMap, projectMap, onOpen }: {
   month: string
   items: Schedule[]
   taskMap: Map<string, Task>
+  projectMap: Map<string, ProjectCalendar>
   onOpen: (item: Schedule) => void
 }) {
   const [year, value] = month.split('-').map(Number)
@@ -357,7 +506,7 @@ function TimelineView({ month, items, taskMap, onOpen }: {
                 <i className={(new Date(year, value - 1, index + 1).getDay() % 6 === 0) ? 'weekend' : ''} key={index} />
               ))}
               <button
-                className={`timeline-bar kind-${item.kind}`}
+                className={`timeline-bar ${scheduleTone(item, projectMap)}`}
                 style={{ gridColumn: `${start} / span ${span}` }}
                 onClick={() => onOpen(item)}
                 title={`${item.title} · ${item.startDate} ~ ${item.endDate}`}
@@ -454,6 +603,45 @@ function ScheduleModal({ draft, tasks, projects, onChange, onSave, onRemove, onC
         <label>메모</label>
         <textarea className="textarea" rows={4} value={draft.notes} onChange={(e) => onChange({ ...draft, notes: e.target.value })} placeholder="준비할 내용이나 참고 사항" />
       </div>
+    </Modal>
+  )
+}
+
+function ProjectModal({ draft, onChange, onSave, onClose }: {
+  draft: ProjectCalendar
+  onChange: (draft: ProjectCalendar) => void
+  onSave: () => void
+  onClose: () => void
+}) {
+  return (
+    <Modal title="프로젝트 캘린더 추가" onClose={onClose} onSubmit={onSave} submitLabel="추가">
+      <div className="field">
+        <label>프로젝트 이름</label>
+        <input
+          className="input"
+          autoFocus
+          value={draft.name}
+          onChange={(event) => onChange({ ...draft, name: event.target.value })}
+          placeholder="예) 신규 서비스 준비"
+        />
+      </div>
+      <div className="field">
+        <label>캘린더 색상</label>
+        <div className="project-color-options">
+          {PROJECT_COLORS.map((color) => (
+            <button
+              type="button"
+              className={`project-color-option project-${color}${draft.color === color ? ' active' : ''}`}
+              key={color}
+              onClick={() => onChange({ ...draft, color })}
+            >
+              <span />
+              {colorLabel(color)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="project-modal-note">추가한 프로젝트는 우측 패널에서 켜고 끄거나 일정을 바로 추가할 수 있습니다.</p>
     </Modal>
   )
 }
