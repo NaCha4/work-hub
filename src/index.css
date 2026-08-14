@@ -555,8 +555,6 @@ a { color: var(--accent); }
 }
 .project-color-option:hover, .project-color-option.active { border-color: currentColor; }
 .project-color-option span { width: 10px; height: 10px; border-radius: 3px; background: currentColor; }
-.project-modal-note { margin: 2px 0 0; color: var(--muted); font-size: 11.5px; }
-
 .schedule-backlog { padding: 14px; box-shadow: none; }
 .schedule-backlog .card-head { align-items: center; }
 .schedule-count {

@@ -189,11 +189,10 @@ export default function SchedulePage() {
     if (!draft.allDay && draft.startDate === draft.endDate && draft.endTime && draft.endTime <= draft.startTime) {
       return alert('종료 시간은 시작 시간보다 늦어야 합니다.')
     }
-    const linked = taskMap.get(draft.taskId)
     const normalized = {
       ...draft,
       title: draft.title.trim(),
-      project: draft.project.trim() || linked?.project || '',
+      project: draft.project.trim(),
       startTime: draft.allDay ? '' : draft.startTime,
       endTime: draft.allDay ? '' : draft.endTime,
     }
@@ -346,7 +345,6 @@ export default function SchedulePage() {
       {draft && (
         <ScheduleModal
           draft={draft}
-          tasks={openTasks}
           projects={calendarNames}
           onChange={setDraft}
           onSave={save}
@@ -608,26 +606,14 @@ function TimelineView({ month, items, taskMap, projectMap, spotlightProject, onO
   )
 }
 
-function ScheduleModal({ draft, tasks, projects, onChange, onSave, onRemove, onClose }: {
+function ScheduleModal({ draft, projects, onChange, onSave, onRemove, onClose }: {
   draft: Schedule
-  tasks: Task[]
   projects: string[]
   onChange: (draft: Schedule) => void
   onSave: () => void
   onRemove?: () => void
   onClose: () => void
 }) {
-  function linkTask(taskId: string) {
-    const task = tasks.find((item) => item.id === taskId)
-    onChange({
-      ...draft,
-      taskId,
-      title: !draft.title || tasks.some((item) => item.title === draft.title) ? task?.title ?? draft.title : draft.title,
-      project: task?.project || draft.project,
-      kind: task ? 'work' : draft.kind,
-    })
-  }
-
   return (
     <Modal
       title={draft.id ? '일정 편집' : '새 일정'}
@@ -647,10 +633,10 @@ function ScheduleModal({ draft, tasks, projects, onChange, onSave, onRemove, onC
           </select>
         </div>
         <div className="field">
-          <label>업무 연결</label>
-          <select className="select" value={draft.taskId} onChange={(e) => linkTask(e.target.value)}>
-            <option value="">연결하지 않음</option>
-            {tasks.map((task) => <option value={task.id} key={task.id}>{task.title}</option>)}
+          <label>프로젝트 연결</label>
+          <select className="select" value={draft.project} onChange={(e) => onChange({ ...draft, project: e.target.value })}>
+            <option value="">프로젝트 없음</option>
+            {projects.map((value) => <option value={value} key={value}>{value}</option>)}
           </select>
         </div>
       </div>
@@ -675,16 +661,9 @@ function ScheduleModal({ draft, tasks, projects, onChange, onSave, onRemove, onC
           <button className="btn ghost sm" key={days} onClick={() => onChange({ ...draft, endDate: addDays(draft.startDate, days - 1) })}>{days}일</button>
         ))}
       </div>
-      <div className="row">
-        <div className="field">
-          <label>프로젝트</label>
-          <input className="input" list="schedule-projects" value={draft.project} onChange={(e) => onChange({ ...draft, project: e.target.value })} placeholder="선택 사항" />
-          <datalist id="schedule-projects">{projects.map((value) => <option value={value} key={value} />)}</datalist>
-        </div>
-        <div className="field">
-          <label>장소</label>
-          <input className="input" value={draft.location} onChange={(e) => onChange({ ...draft, location: e.target.value })} placeholder="선택 사항" />
-        </div>
+      <div className="field">
+        <label>장소</label>
+        <input className="input" value={draft.location} onChange={(e) => onChange({ ...draft, location: e.target.value })} placeholder="선택 사항" />
       </div>
       <div className="field">
         <label>메모</label>
@@ -728,7 +707,6 @@ function ProjectModal({ draft, onChange, onSave, onClose }: {
           ))}
         </div>
       </div>
-      <p className="project-modal-note">추가한 프로젝트는 우측 패널에서 켜고 끄거나 일정을 바로 추가할 수 있습니다.</p>
     </Modal>
   )
 }
