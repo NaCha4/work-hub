@@ -1,0 +1,459 @@
+import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useLocation } from 'react-router-dom'
+import DateInput from '../components/DateInput'
+import Icon from '../components/Icon'
+import Modal from '../components/Modal'
+import { useAuth } from '../lib/auth'
+import { createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
+import { nowTime, today } from '../lib/markdown'
+import {
+  SCHEDULE_KIND_LABEL,
+  TASK_PRIORITY_LABEL,
+  type Schedule,
+  type ScheduleKind,
+  type Task,
+} from '../lib/types'
+
+const KINDS: ScheduleKind[] = ['personal', 'work', 'meeting', 'focus', 'deadline']
+const DOW = ['일', '월', '화', '수', '목', '금', '토']
+const DAY_MS = 86400000
+
+type View = 'month' | 'timeline'
+
+function dateAt(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function ymd(date: Date) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`
+}
+
+function addDays(value: string, days: number) {
+  const date = dateAt(value)
+  date.setDate(date.getDate() + days)
+  return ymd(date)
+}
+
+function daysBetween(from: string, to: string) {
+  return Math.round((dateAt(to).getTime() - dateAt(from).getTime()) / DAY_MS)
+}
+
+function blank(uid: string, name: string, date = today(), task?: Task): Schedule {
+  return {
+    id: '',
+    title: task?.title ?? '',
+    kind: task ? 'work' : 'personal',
+    startDate: date,
+    endDate: date,
+    startTime: task ? '09:00' : nowTime(),
+    endTime: task ? '10:00' : '',
+    allDay: false,
+    taskId: task?.id ?? '',
+    project: task?.project ?? '',
+    location: '',
+    notes: '',
+    authorUid: uid,
+    authorName: name,
+    createdAt: 0,
+    updatedAt: 0,
+  }
+}
+
+export default function SchedulePage() {
+  const { member } = useAuth()
+  const location = useLocation()
+  const { items: schedules, loading, error } = useCollection<Schedule>('schedules', !!member)
+  const { items: tasks } = useCollection<Task>('tasks', !!member)
+  const [month, setMonth] = useState(() => today().slice(0, 7))
+  const [view, setView] = useState<View>('month')
+  const [kind, setKind] = useState<ScheduleKind | ''>('')
+  const [project, setProject] = useState('')
+  const [draft, setDraft] = useState<Schedule | null>(null)
+
+  const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
+  const projects = useMemo(() => {
+    const values = schedules.map((item) => item.project)
+      .concat(tasks.map((task) => task.project))
+      .filter(Boolean)
+    return [...new Set(values)].sort()
+  }, [schedules, tasks])
+  const visible = useMemo(() => schedules.filter((item) => {
+    if (kind && item.kind !== kind) return false
+    if (project && (item.project || taskMap.get(item.taskId)?.project) !== project) return false
+    return true
+  }), [kind, project, schedules, taskMap])
+  const openTasks = tasks.filter((task) => task.status !== 'done')
+  const scheduledTaskIds = new Set(schedules.map((item) => item.taskId).filter(Boolean))
+  const unscheduled = openTasks.filter((task) => !scheduledTaskIds.has(task.id))
+  const inMonth = visible.filter((item) => item.startDate.slice(0, 7) <= month && item.endDate.slice(0, 7) >= month)
+  const workCount = inMonth.filter((item) => item.taskId || item.kind !== 'personal').length
+
+  useEffect(() => {
+    const state = location.state as { open?: string } | null
+    const target = state?.open ? schedules.find((item) => item.id === state.open) : undefined
+    if (target) {
+      setMonth(target.startDate.slice(0, 7))
+      setDraft(target)
+    }
+  }, [location.state, schedules])
+
+  function shiftMonth(delta: number) {
+    const [year, value] = month.split('-').map(Number)
+    setMonth(ymd(new Date(year, value - 1 + delta, 1)).slice(0, 7))
+  }
+
+  function openNew(date = today(), task?: Task) {
+    setDraft(blank(member!.uid, member!.displayName, date, task))
+  }
+
+  function onTaskDrop(event: DragEvent, date: string) {
+    event.preventDefault()
+    const task = taskMap.get(event.dataTransfer.getData('text/task-id'))
+    if (task) openNew(date, task)
+  }
+
+  async function save() {
+    if (!draft) return
+    if (!draft.title.trim()) return alert('일정 제목을 입력해 주세요.')
+    if (!draft.startDate || !draft.endDate) return alert('시작일과 종료일을 입력해 주세요.')
+    if (draft.endDate < draft.startDate) return alert('종료일은 시작일보다 빠를 수 없습니다.')
+    if (!draft.allDay && draft.startDate === draft.endDate && draft.endTime && draft.endTime <= draft.startTime) {
+      return alert('종료 시간은 시작 시간보다 늦어야 합니다.')
+    }
+    const linked = taskMap.get(draft.taskId)
+    const normalized = {
+      ...draft,
+      title: draft.title.trim(),
+      project: draft.project.trim() || linked?.project || '',
+      startTime: draft.allDay ? '' : draft.startTime,
+      endTime: draft.allDay ? '' : draft.endTime,
+    }
+    const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = normalized
+    if (id) await updateDocById('schedules', id, data)
+    else await createDoc('schedules', data)
+    setDraft(null)
+  }
+
+  async function remove(item: Schedule) {
+    if (!confirm(`"${item.title}" 일정을 삭제할까요?`)) return
+    await deleteDocById('schedules', item.id)
+    setDraft(null)
+  }
+
+  return (
+    <div className="page schedule-page">
+      <div className="page-head schedule-head">
+        <div>
+          <h1>일정</h1>
+          <p className="page-sub">개인 일정과 업무 시간을 함께 놓고, 업무별 흐름을 확인합니다.</p>
+        </div>
+        <span className="spacer" />
+        <div className="schedule-view-switch" aria-label="보기 방식">
+          <button className={view === 'month' ? 'active' : ''} onClick={() => setView('month')}>달력</button>
+          <button className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>업무별</button>
+        </div>
+        <button className="btn primary" onClick={() => openNew()}>
+          <span aria-hidden="true">+</span> 일정
+        </button>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+
+      <div className="schedule-stats">
+        <Stat label="이번 달 일정" value={inMonth.length} />
+        <Stat label="업무 일정" value={workCount} />
+        <Stat label="미배정 업무" value={unscheduled.length} tone={unscheduled.length ? 'warn' : ''} />
+      </div>
+
+      <div className="schedule-toolbar card">
+        <div className="schedule-month-nav">
+          <button className="btn ghost sm" onClick={() => shiftMonth(-1)} aria-label="이전 달">
+            <Icon name="chevron-left" />
+          </button>
+          <strong>{Number(month.slice(0, 4))}년 {Number(month.slice(5))}월</strong>
+          <button className="btn ghost sm" onClick={() => shiftMonth(1)} aria-label="다음 달">
+            <Icon name="chevron-right" />
+          </button>
+          <button className="btn ghost sm" onClick={() => setMonth(today().slice(0, 7))}>오늘</button>
+        </div>
+        <span className="spacer" />
+        <select className="select" value={kind} onChange={(e) => setKind(e.target.value as ScheduleKind | '')}>
+          <option value="">모든 구분</option>
+          {KINDS.map((value) => <option value={value} key={value}>{SCHEDULE_KIND_LABEL[value]}</option>)}
+        </select>
+        <select className="select" value={project} onChange={(e) => setProject(e.target.value)}>
+          <option value="">모든 프로젝트</option>
+          {projects.map((value) => <option value={value} key={value}>{value}</option>)}
+        </select>
+      </div>
+
+      <div className="schedule-workspace">
+        <section className="schedule-main">
+          {loading ? <div className="empty">일정을 불러오는 중입니다.</div> : view === 'month' ? (
+            <MonthView
+              month={month}
+              items={visible}
+              onOpen={setDraft}
+              onAdd={openNew}
+              onTaskDrop={onTaskDrop}
+            />
+          ) : (
+            <TimelineView month={month} items={visible} taskMap={taskMap} onOpen={setDraft} />
+          )}
+        </section>
+
+        <aside className="schedule-backlog card">
+          <div className="card-head">
+            <h3>배정할 업무</h3>
+            <span className="schedule-count">{unscheduled.length}</span>
+          </div>
+          <p>업무를 달력 날짜로 끌거나 눌러 일정을 잡습니다.</p>
+          <div className="schedule-task-list">
+            {unscheduled.length === 0 && <div className="schedule-task-empty">모든 업무에 일정이 있습니다.</div>}
+            {unscheduled.map((task) => (
+              <button
+                className="schedule-task"
+                key={task.id}
+                draggable
+                onDragStart={(event) => event.dataTransfer.setData('text/task-id', task.id)}
+                onClick={() => openNew(today(), task)}
+              >
+                <span className="schedule-task-title">{task.title}</span>
+                <span className="schedule-task-meta">
+                  <span className={`prio-${task.priority}`}>{TASK_PRIORITY_LABEL[task.priority]}</span>
+                  {task.project && <span>{task.project}</span>}
+                  {task.due && <span>마감 {task.due.slice(5)}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+        </aside>
+      </div>
+
+      {draft && (
+        <ScheduleModal
+          draft={draft}
+          tasks={openTasks}
+          projects={projects}
+          onChange={setDraft}
+          onSave={save}
+          onRemove={draft.id ? () => remove(draft) : undefined}
+          onClose={() => setDraft(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function Stat({ label, value, tone = '' }: { label: string; value: number; tone?: string }) {
+  return <div className={`schedule-stat ${tone}`}><span>{label}</span><strong>{value}</strong></div>
+}
+
+interface MonthProps {
+  month: string
+  items: Schedule[]
+  onOpen: (item: Schedule) => void
+  onAdd: (date: string) => void
+  onTaskDrop: (event: DragEvent, date: string) => void
+}
+
+function MonthView({ month, items, onOpen, onAdd, onTaskDrop }: MonthProps) {
+  const [year, value] = month.split('-').map(Number)
+  const first = new Date(year, value - 1, 1)
+  const start = new Date(year, value - 1, 1 - first.getDay())
+  const cells = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    return ymd(date)
+  })
+
+  return (
+    <div className="schedule-calendar card">
+      <div className="schedule-weekdays">
+        {DOW.map((day) => <div key={day}>{day}</div>)}
+      </div>
+      <div className="schedule-calendar-grid">
+        {cells.map((date) => {
+          const list = items
+            .filter((item) => item.startDate <= date && item.endDate >= date)
+            .sort((a, b) => `${a.startTime}${a.title}`.localeCompare(`${b.startTime}${b.title}`))
+          return (
+            <div
+              className={`schedule-day${date.slice(0, 7) !== month ? ' outside' : ''}${date === today() ? ' today' : ''}`}
+              key={date}
+              onClick={() => onAdd(date)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => onTaskDrop(event, date)}
+            >
+              <div className="schedule-day-number">{Number(date.slice(8))}</div>
+              <div className="schedule-day-items">
+                {list.slice(0, 4).map((item) => (
+                  <button
+                    className={`schedule-event kind-${item.kind}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}`}
+                    key={item.id}
+                    title={item.title}
+                    onClick={(event) => { event.stopPropagation(); onOpen(item) }}
+                  >
+                    {!item.allDay && item.startDate === date && <span>{item.startTime}</span>}
+                    <b>{item.title}</b>
+                  </button>
+                ))}
+                {list.length > 4 && <span className="schedule-more">외 {list.length - 4}개</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TimelineView({ month, items, taskMap, onOpen }: {
+  month: string
+  items: Schedule[]
+  taskMap: Map<string, Task>
+  onOpen: (item: Schedule) => void
+}) {
+  const [year, value] = month.split('-').map(Number)
+  const last = new Date(year, value, 0).getDate()
+  const firstDate = `${month}-01`
+  const lastDate = `${month}-${String(last).padStart(2, '0')}`
+  const rows = items
+    .filter((item) => item.startDate <= lastDate && item.endDate >= firstDate)
+    .sort((a, b) => (a.taskId ? taskMap.get(a.taskId)?.title : a.title)?.localeCompare(
+      b.taskId ? taskMap.get(b.taskId)?.title ?? b.title : b.title,
+    ) ?? 0)
+
+  if (rows.length === 0) return <div className="empty">이 달에 표시할 일정이 없습니다.</div>
+
+  return (
+    <div className="schedule-timeline card">
+      <div className="timeline-head">
+        <div className="timeline-label">업무</div>
+        <div className="timeline-days" style={{ gridTemplateColumns: `repeat(${last}, minmax(24px, 1fr))` }}>
+          {Array.from({ length: last }, (_, index) => index + 1).map((day) => (
+            <span className={(new Date(year, value - 1, day).getDay() % 6 === 0) ? 'weekend' : ''} key={day}>
+              {day}
+            </span>
+          ))}
+        </div>
+      </div>
+      {rows.map((item) => {
+        const clippedStart = item.startDate < firstDate ? firstDate : item.startDate
+        const clippedEnd = item.endDate > lastDate ? lastDate : item.endDate
+        const start = daysBetween(firstDate, clippedStart) + 1
+        const span = daysBetween(clippedStart, clippedEnd) + 1
+        const task = taskMap.get(item.taskId)
+        return (
+          <div className="timeline-row" key={item.id}>
+            <button className="timeline-label timeline-name" onClick={() => onOpen(item)}>
+              <b>{task?.title ?? item.title}</b>
+              <span>{item.project || task?.project || SCHEDULE_KIND_LABEL[item.kind]}</span>
+            </button>
+            <div className="timeline-track" style={{ gridTemplateColumns: `repeat(${last}, minmax(24px, 1fr))` }}>
+              {Array.from({ length: last }, (_, index) => (
+                <i className={(new Date(year, value - 1, index + 1).getDay() % 6 === 0) ? 'weekend' : ''} key={index} />
+              ))}
+              <button
+                className={`timeline-bar kind-${item.kind}`}
+                style={{ gridColumn: `${start} / span ${span}` }}
+                onClick={() => onOpen(item)}
+                title={`${item.title} · ${item.startDate} ~ ${item.endDate}`}
+              >
+                {item.title}
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ScheduleModal({ draft, tasks, projects, onChange, onSave, onRemove, onClose }: {
+  draft: Schedule
+  tasks: Task[]
+  projects: string[]
+  onChange: (draft: Schedule) => void
+  onSave: () => void
+  onRemove?: () => void
+  onClose: () => void
+}) {
+  function linkTask(taskId: string) {
+    const task = tasks.find((item) => item.id === taskId)
+    onChange({
+      ...draft,
+      taskId,
+      title: !draft.title || tasks.some((item) => item.title === draft.title) ? task?.title ?? draft.title : draft.title,
+      project: task?.project || draft.project,
+      kind: task ? 'work' : draft.kind,
+    })
+  }
+
+  return (
+    <Modal
+      title={draft.id ? '일정 편집' : '새 일정'}
+      onClose={onClose}
+      onSubmit={onSave}
+      extraActions={onRemove ? <button className="btn ghost danger" onClick={onRemove}>삭제</button> : undefined}
+    >
+      <div className="field">
+        <label>제목</label>
+        <input className="input" autoFocus value={draft.title} onChange={(e) => onChange({ ...draft, title: e.target.value })} placeholder="예) 기획안 초안 작성" />
+      </div>
+      <div className="row">
+        <div className="field">
+          <label>구분</label>
+          <select className="select" value={draft.kind} onChange={(e) => onChange({ ...draft, kind: e.target.value as ScheduleKind })}>
+            {KINDS.map((value) => <option value={value} key={value}>{SCHEDULE_KIND_LABEL[value]}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>업무 연결</label>
+          <select className="select" value={draft.taskId} onChange={(e) => linkTask(e.target.value)}>
+            <option value="">연결하지 않음</option>
+            {tasks.map((task) => <option value={task.id} key={task.id}>{task.title}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="schedule-all-day">
+        <label><input type="checkbox" checked={draft.allDay} onChange={(e) => onChange({ ...draft, allDay: e.target.checked })} /> 종일 일정</label>
+      </div>
+      <div className="row">
+        <div className="field">
+          <label>시작일</label>
+          <DateInput value={draft.startDate} onChange={(value) => onChange({ ...draft, startDate: value, endDate: draft.endDate < value ? value : draft.endDate })} />
+        </div>
+        {!draft.allDay && <div className="field"><label>시작 시간</label><DateInput type="time" value={draft.startTime} onChange={(value) => onChange({ ...draft, startTime: value })} /></div>}
+        <div className="field">
+          <label>종료일</label>
+          <DateInput value={draft.endDate} onChange={(value) => onChange({ ...draft, endDate: value })} />
+        </div>
+        {!draft.allDay && <div className="field"><label>종료 시간</label><DateInput type="time" value={draft.endTime} onChange={(value) => onChange({ ...draft, endTime: value })} /></div>}
+      </div>
+      <div className="schedule-duration-presets">
+        <span>기간</span>
+        {[1, 3, 5, 7].map((days) => (
+          <button className="btn ghost sm" key={days} onClick={() => onChange({ ...draft, endDate: addDays(draft.startDate, days - 1) })}>{days}일</button>
+        ))}
+      </div>
+      <div className="row">
+        <div className="field">
+          <label>프로젝트</label>
+          <input className="input" list="schedule-projects" value={draft.project} onChange={(e) => onChange({ ...draft, project: e.target.value })} placeholder="선택 사항" />
+          <datalist id="schedule-projects">{projects.map((value) => <option value={value} key={value} />)}</datalist>
+        </div>
+        <div className="field">
+          <label>장소</label>
+          <input className="input" value={draft.location} onChange={(e) => onChange({ ...draft, location: e.target.value })} placeholder="선택 사항" />
+        </div>
+      </div>
+      <div className="field">
+        <label>메모</label>
+        <textarea className="textarea" rows={4} value={draft.notes} onChange={(e) => onChange({ ...draft, notes: e.target.value })} placeholder="준비할 내용이나 참고 사항" />
+      </div>
+    </Modal>
+  )
+}

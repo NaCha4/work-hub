@@ -91,6 +91,11 @@ service cloud.firestore {
       allow read, create, update, delete: if isMember();
     }
 
+    // 개인 일정과 업무 배정은 하나의 작업 공간에서 모든 멤버가 함께 관리한다.
+    match /schedules/{id} {
+      allow read, create, update, delete: if isMember();
+    }
+
     // 식사 기록. 업무 자료는 아니지만 접근 조건은 나머지와 같다.
     match /meals/{id} {
       allow read: if isMember();

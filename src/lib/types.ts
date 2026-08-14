@@ -36,6 +36,33 @@ export interface Journal {
 export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
+export type ScheduleKind = 'personal' | 'work' | 'meeting' | 'focus' | 'deadline'
+
+/** 달력에 놓는 일정. 업무와 개인 약속을 한 화면에서 보되 업무는 할 일과 연결할 수 있다. */
+export interface Schedule {
+  id: Id
+  title: string
+  kind: ScheduleKind
+  /** YYYY-MM-DD */
+  startDate: string
+  /** YYYY-MM-DD. 하루짜리 일정도 시작일과 같은 값을 넣는다. */
+  endDate: string
+  /** HH:mm. 종일 일정이면 빈 문자열 */
+  startTime: string
+  /** HH:mm. 종일 일정이면 빈 문자열 */
+  endTime: string
+  allDay: boolean
+  /** 연결된 할 일. 개인 일정처럼 연결하지 않는 일정이면 빈 문자열 */
+  taskId: Id
+  project: string
+  location: string
+  notes: string
+  authorUid: string
+  authorName: string
+  createdAt: number
+  updatedAt: number
+}
+
 /** 할 일 */
 export interface Task {
   id: Id
@@ -183,4 +210,12 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
   normal: '보통',
   high: '높음',
   urgent: '긴급',
+}
+
+export const SCHEDULE_KIND_LABEL: Record<ScheduleKind, string> = {
+  personal: '개인',
+  work: '업무',
+  meeting: '회의',
+  focus: '집중',
+  deadline: '마감',
 }

@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth'
 const NAV: { to: string; label: string; ico: IconName }[] = [
   // 할 일은 별도 화면이 아니라 대시보드 안에 있다.
   { to: '/', label: '대시보드', ico: 'dashboard' },
+  { to: '/schedule', label: '일정', ico: 'schedule' },
   { to: '/journal', label: '업무 일지', ico: 'journal' },
   { to: '/meetings', label: '회의 메모', ico: 'meetings' },
   { to: '/preps', label: '준비자료', ico: 'preps' },

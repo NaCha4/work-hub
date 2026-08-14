@@ -20,6 +20,7 @@ export type IconName =
   | 'chevron-left'
   | 'chevron-right'
   | 'brand'
+  | 'schedule'
 
 const PATHS: Record<IconName, ReactNode> = {
   dashboard: (
@@ -106,6 +107,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M14 4h7v7h-7z" />
       <path d="M3 15h7v6H3z" />
       <path d="M14 15h7v6h-7z" />
+    </>
+  ),
+  schedule: (
+    <>
+      <path d="M4 5h16v16H4z" />
+      <path d="M4 9h16M8 3v4M16 3v4" />
+      <path d="M8 13h3v3H8zM14 13h2M14 17h2" />
     </>
   ),
 }

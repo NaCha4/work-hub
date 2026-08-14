@@ -4,11 +4,11 @@ import Modal from './Modal'
 import { useAuth } from '../lib/auth'
 import { byDate, byUpdated, useCollection } from '../lib/db'
 import { withDow } from '../lib/markdown'
-import type { Journal, Meeting, Prep } from '../lib/types'
+import type { Journal, Meeting, Prep, Schedule } from '../lib/types'
 
 interface Hit {
   key: string
-  kind: '일지' | '메모' | '자료'
+  kind: '일지' | '메모' | '자료' | '일정'
   title: string
   snippet: string
   go: () => void
@@ -33,7 +33,7 @@ function textOf(p: Prep): string {
 }
 
 /**
- * 일지·회의 메모·준비자료를 한 창에서 찾는다.
+ * 일지·회의 메모·준비자료·일정을 한 창에서 찾는다.
  *
  * 화면마다 있는 검색은 그 화면 것만 본다. "어디에 적었는지" 부터 모를 때 쓰라고
  * 있는 창이므로, 결과를 누르면 그 화면으로 옮겨 해당 항목을 열거나 검색어를 건다.
@@ -45,6 +45,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
   const { items: journals } = useCollection<Journal>('journals', !!member, byDate)
   const { items: meetings } = useCollection<Meeting>('meetings', !!member, byDate)
   const { items: preps } = useCollection<Prep>('preps', !!member, byUpdated)
+  const { items: schedules } = useCollection<Schedule>('schedules', !!member)
 
   // 자료 하나가 수백 KB 일 수 있어 타이핑마다 벗기지 않고 한 번 벗겨 둔다.
   const prepTexts = useMemo(() => new Map(preps.map((p) => [p.id, textOf(p)])), [preps])
@@ -98,15 +99,26 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
         go: go('/preps', { open: p.id }),
       })
     }
+    for (const s of schedules) {
+      const text = [s.title, s.startDate, s.endDate, s.project, s.location, s.notes].join('\n')
+      if (!text.toLowerCase().includes(k)) continue
+      out.push({
+        key: `s${s.id}`,
+        kind: '일정',
+        title: `${s.title} · ${s.startDate}`,
+        snippet: snip(text, k),
+        go: go('/schedule', { open: s.id }),
+      })
+    }
     return out.slice(0, 20)
-  }, [q, journals, meetings, preps, prepTexts, nav, onClose])
+  }, [q, journals, meetings, preps, schedules, prepTexts, nav, onClose])
 
   return (
     <Modal title="검색" onClose={onClose}>
       <input
         className="input"
         autoFocus
-        placeholder="일지 · 회의 메모 · 준비자료에서 찾기 (2자 이상)"
+        placeholder="일지 · 회의 메모 · 준비자료 · 일정에서 찾기 (2자 이상)"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => {

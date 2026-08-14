@@ -9,6 +9,7 @@ import Preps from './pages/Preps'
 import Meals from './pages/Meals'
 import Settings from './pages/Settings'
 import SessionView from './pages/SessionView'
+import Schedule from './pages/Schedule'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ function PrivateApp() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/journal" element={<Journal />} />
+        <Route path="/schedule" element={<Schedule />} />
         <Route path="/meetings" element={<Meetings />} />
         <Route path="/preps" element={<Preps />} />
         <Route path="/meals" element={<Meals />} />
