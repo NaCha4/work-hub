@@ -4,7 +4,7 @@ import DateInput from '../components/DateInput'
 import Icon from '../components/Icon'
 import Modal from '../components/Modal'
 import { useAuth } from '../lib/auth'
-import { createDoc, deleteDocById, updateDocById, useCollection } from '../lib/db'
+import { createDoc, deleteDocById, deleteProjectCalendar, updateDocById, useCollection } from '../lib/db'
 import { nowTime, today } from '../lib/markdown'
 import {
   SCHEDULE_KIND_LABEL,
@@ -151,11 +151,17 @@ export default function SchedulePage() {
   }
 
   async function removeProject(item: ProjectCalendar) {
-    const used = schedules.some((schedule) => schedule.project === item.name)
-      || tasks.some((task) => task.project === item.name)
-    if (used) return alert('연결된 일정이나 업무가 있어 삭제할 수 없습니다.')
-    if (!confirm(`"${item.name}" 프로젝트 캘린더를 삭제할까요?`)) return
-    await deleteDocById('scheduleProjects', item.id)
+    const linkedSchedules = schedules.filter((schedule) => schedule.project === item.name)
+    const linkedTasks = tasks.filter((task) => task.project === item.name)
+    const impact = linkedSchedules.length || linkedTasks.length
+      ? `\n연결된 일정 ${linkedSchedules.length}개와 업무 ${linkedTasks.length}개는 삭제하지 않고 미지정으로 옮깁니다.`
+      : ''
+    if (!confirm(`"${item.name}" 프로젝트 캘린더를 삭제할까요?${impact}`)) return
+    await deleteProjectCalendar(
+      item.id,
+      linkedSchedules.map((schedule) => schedule.id),
+      linkedTasks.map((task) => task.id),
+    )
   }
 
   function toggleProject(name: string) {

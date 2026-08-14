@@ -7,6 +7,7 @@ import {
   orderBy,
   query,
   updateDoc,
+  writeBatch,
   type QueryConstraint,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
@@ -86,4 +87,30 @@ export async function updateDocById(
 
 export async function deleteDocById(name: CollectionName, id: string) {
   await deleteDoc(doc(db, name, id))
+}
+
+/**
+ * 프로젝트 캘린더를 지울 때 연결된 일정·업무는 보존하고 프로젝트 이름만 비운다.
+ * Firestore 배치 상한보다 여유 있게 450개씩 나눠 처리하고 마지막 배치에서 설정을 지운다.
+ */
+export async function deleteProjectCalendar(
+  projectId: string,
+  scheduleIds: string[],
+  taskIds: string[],
+) {
+  const refs = [
+    ...scheduleIds.map((id) => doc(db, 'schedules', id)),
+    ...taskIds.map((id) => doc(db, 'tasks', id)),
+  ]
+  const chunks = refs.length ? Math.ceil(refs.length / 450) : 1
+  const now = Date.now()
+
+  for (let index = 0; index < chunks; index += 1) {
+    const batch = writeBatch(db)
+    for (const ref of refs.slice(index * 450, (index + 1) * 450)) {
+      batch.update(ref, { project: '', updatedAt: now })
+    }
+    if (index === chunks - 1) batch.delete(doc(db, 'scheduleProjects', projectId))
+    await batch.commit()
+  }
 }
