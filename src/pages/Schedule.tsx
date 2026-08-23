@@ -8,6 +8,7 @@ import {
   createDoc,
   deleteDocById,
   deleteProjectCalendar,
+  deleteProjectSchedules,
   renameProjectCalendar,
   saveProjectCalendarOrder,
   updateDocById,
@@ -190,6 +191,13 @@ export default function SchedulePage() {
     )
   }
 
+  async function removeProjectSchedules(name: string) {
+    const linked = schedules.filter((schedule) => schedule.project === name)
+    if (linked.length === 0) return alert(`"${name}" 프로젝트에 삭제할 일정이 없습니다.`)
+    if (!confirm(`"${name}" 프로젝트의 일정 ${linked.length}개를 모두 삭제할까요?\n삭제한 일정은 되돌릴 수 없습니다.`)) return
+    await deleteProjectSchedules(linked.map((schedule) => schedule.id))
+  }
+
   async function renameProject(name: string, color: ProjectCalendarColor, item?: ProjectCalendar) {
     const nextName = prompt('새 프로젝트 이름을 입력해 주세요.', name)?.trim()
     if (!nextName || nextName === name) return
@@ -366,6 +374,7 @@ export default function SchedulePage() {
                     onAdd={() => openNew(today(), undefined, name)}
                     onColor={(color) => changeProjectColor(name, color, calendar)}
                     onRename={() => renameProject(name, calendar?.color ?? 'blue', calendar)}
+                    onRemoveSchedules={() => removeProjectSchedules(name)}
                     onRemove={() => removeProject(name, calendar?.id)}
                     draggable
                     dragging={dragProject === name}
@@ -436,7 +445,7 @@ function Stat({ label, value, tone = '' }: { label: string; value: number; tone?
 }
 
 function ProjectCalendarRow({
-  name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRename, onRemove,
+  name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRename, onRemoveSchedules, onRemove,
   draggable = false, dragging = false, dragOver = false, onDragStart, onDragOver, onDrop, onDragEnd,
 }: {
   name: string
@@ -448,6 +457,7 @@ function ProjectCalendarRow({
   onAdd: () => void
   onColor?: (color: ProjectCalendarColor) => void
   onRename?: () => void
+  onRemoveSchedules?: () => void
   onRemove?: () => void
   draggable?: boolean
   dragging?: boolean
@@ -472,11 +482,11 @@ function ProjectCalendarRow({
   }, [context])
 
   function openContext(event: ReactMouseEvent) {
-    if (!onRemove && !onColor && !onRename) return
+    if (!onRemove && !onColor && !onRename && !onRemoveSchedules) return
     event.preventDefault()
     setContext({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 194)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 172)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 212)),
     })
   }
 
@@ -500,7 +510,7 @@ function ProjectCalendarRow({
       }}
       onDragEnd={onDragEnd}
       onContextMenu={openContext}
-      title={onRemove || onColor || onRename ? '우클릭하여 프로젝트 관리' : undefined}
+      title={onRemove || onColor || onRename || onRemoveSchedules ? '우클릭하여 프로젝트 관리' : undefined}
     >
       <button className="project-calendar-toggle" onClick={onSelect} aria-pressed={selected}>
         <span className={`project-calendar-dot project-${color}`} />
@@ -508,7 +518,7 @@ function ProjectCalendarRow({
         <span className="project-calendar-count">{count}</span>
       </button>
       <button className="project-calendar-add" onClick={onAdd} title={`${name} 일정 추가`} aria-label={`${name} 일정 추가`}>+</button>
-      {context && (onColor || onRename || onRemove) && (
+      {context && (onColor || onRename || onRemoveSchedules || onRemove) && (
         <div
           className="project-context-menu"
           role="menu"
@@ -545,6 +555,18 @@ function ProjectCalendarRow({
               }}
             >
               프로젝트 이름 변경
+            </button>
+          )}
+          {onRemoveSchedules && (
+            <button
+              className="project-context-delete"
+              role="menuitem"
+              onClick={() => {
+                setContext(null)
+                onRemoveSchedules()
+              }}
+            >
+              일정 전체 삭제
             </button>
           )}
           {onRemove && (

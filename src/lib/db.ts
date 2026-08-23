@@ -116,6 +116,17 @@ export async function deleteProjectCalendar(
   }
 }
 
+/** 프로젝트에 연결된 일정을 전부 지운다. 프로젝트 캘린더 자체는 남긴다. */
+export async function deleteProjectSchedules(scheduleIds: string[]) {
+  for (let from = 0; from < scheduleIds.length; from += 450) {
+    const batch = writeBatch(db)
+    for (const id of scheduleIds.slice(from, from + 450)) {
+      batch.delete(doc(db, 'schedules', id))
+    }
+    await batch.commit()
+  }
+}
+
 /** 프로젝트 이름을 바꾸면서 연결된 일정과 업무의 문자열 참조도 함께 옮긴다. */
 export async function renameProjectCalendar(
   projectId: string | undefined,
