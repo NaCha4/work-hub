@@ -355,7 +355,14 @@ export default function SchedulePage() {
   async function publishShare() {
     const snapshot = buildShareSnapshot(calendarNames, projectMap, schedules, taskMap)
     if (snapshot.projects.length === 0) return alert('공유할 프로젝트가 없습니다.')
-    await publishScheduleShare(share, snapshot, { uid: member!.uid, name: member!.displayName })
+    const code = await publishScheduleShare(share, snapshot, { uid: member!.uid, name: member!.displayName })
+    // 어쩌다 공유 문서가 여러 개 생겼으면 방금 발행한 것만 남기고 닫는다.
+    // 링크가 문서마다 다르므로 살아 있는 문서가 둘이면 어느 링크가 최신인지 알 수 없게 된다.
+    await Promise.all(
+      shares
+        .filter((item) => item.id !== code && item.active)
+        .map((item) => updateDocById('scheduleShares', item.id, { active: false })),
+    )
   }
 
   async function stopShare() {
@@ -1403,6 +1410,9 @@ function ShareModal({ share, onPublish, onStop, onClose }: {
     setBusy(true)
     try {
       await action()
+    } catch (error) {
+      // 발행 실패가 조용히 지나가면 옛 스냅샷이 최신인 줄 알게 된다. 반드시 알린다.
+      alert(`처리하지 못했습니다.\n${(error as Error).message}`)
     } finally {
       setBusy(false)
     }
