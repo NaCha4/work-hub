@@ -45,6 +45,13 @@ const DAY_MS = 86400000
 
 type View = 'month' | 'timeline' | 'overview'
 
+/** 달력에서 바로 추가하는 마일스톤 입력값 */
+interface MilestoneDraft {
+  project: string
+  date: string
+  name: string
+}
+
 function dateAt(ymd: string) {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Date(y, m - 1, d)
@@ -99,6 +106,7 @@ export default function SchedulePage() {
   const [draft, setDraft] = useState<Schedule | null>(null)
   const [projectDraft, setProjectDraft] = useState<ProjectCalendar | null>(null)
   const [projectEditing, setProjectEditing] = useState(false)
+  const [milestoneDraft, setMilestoneDraft] = useState<MilestoneDraft | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [spotlightProject, setSpotlightProject] = useState<string | null>(null)
   const [dragProject, setDragProject] = useState<string | null>(null)
@@ -181,6 +189,33 @@ export default function SchedulePage() {
   function openProjectSettings(name: string, item?: ProjectCalendar) {
     setProjectEditing(true)
     setProjectDraft(item ? { ...newProject(), ...item } : { ...newProject(), name })
+  }
+
+  function openNewMilestone(date: string) {
+    const focused = spotlightProject && spotlightProject !== '__none__' ? spotlightProject : ''
+    setMilestoneDraft({ project: focused || calendarNames[0] || '', date, name: '' })
+  }
+
+  async function saveMilestone() {
+    if (!milestoneDraft) return
+    const name = milestoneDraft.name.trim()
+    if (!milestoneDraft.project) return alert('프로젝트를 선택해 주세요.')
+    if (!name) return alert('마일스톤 이름을 입력해 주세요.')
+    if (!milestoneDraft.date) return alert('날짜를 입력해 주세요.')
+    const milestone: Milestone = { id: crypto.randomUUID(), name, date: milestoneDraft.date, done: false }
+    const item = projectMap.get(milestoneDraft.project)
+    if (item) {
+      await updateDocById('scheduleProjects', item.id, { milestones: [...(item.milestones ?? []), milestone] })
+    } else {
+      // 설정 문서가 없는 암묵적 프로젝트면 이 시점에 만든다.
+      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = {
+        ...newProject(),
+        name: milestoneDraft.project,
+        milestones: [milestone],
+      }
+      await createDoc('scheduleProjects', data)
+    }
+    setMilestoneDraft(null)
   }
 
   async function saveProject() {
@@ -383,6 +418,7 @@ export default function SchedulePage() {
               spotlightProject={spotlightProject}
               projectOrder={projectOrder}
               onOpenProject={(name) => openProjectSettings(name, projectMap.get(name))}
+              onAddMilestone={openNewMilestone}
             />
           ) : view === 'timeline' ? (
             <TimelineView
@@ -499,6 +535,15 @@ export default function SchedulePage() {
           onChange={setProjectDraft}
           onSave={saveProject}
           onClose={() => { setProjectDraft(null); setProjectEditing(false) }}
+        />
+      )}
+      {milestoneDraft && (
+        <MilestoneModal
+          draft={milestoneDraft}
+          projects={calendarNames}
+          onChange={setMilestoneDraft}
+          onSave={saveMilestone}
+          onClose={() => setMilestoneDraft(null)}
         />
       )}
       {shareOpen && (
@@ -720,6 +765,7 @@ interface MonthProps {
   spotlightProject: string | null
   projectOrder: Map<string, number>
   onOpenProject: (name: string) => void
+  onAddMilestone: (date: string) => void
 }
 
 /** 날짜 셀에 얹을 프로젝트 납기·마일스톤 마커 */
@@ -731,8 +777,23 @@ interface DayMarker {
 }
 
 function MonthView({
-  month, items, onOpen, onAdd, onTaskDrop, projectMap, taskMap, spotlightProject, projectOrder, onOpenProject,
+  month, items, onOpen, onAdd, onTaskDrop, projectMap, taskMap, spotlightProject, projectOrder, onOpenProject, onAddMilestone,
 }: MonthProps) {
+  // 날짜를 누르면 무엇을 추가할지 고르는 작은 메뉴. 프로젝트 우클릭 메뉴와 같은 방식으로 닫는다.
+  const [dayMenu, setDayMenu] = useState<{ date: string; x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!dayMenu) return
+    const close = () => setDayMenu(null)
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && close()
+    document.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [dayMenu])
+
   const [year, value] = month.split('-').map(Number)
   const first = new Date(year, value - 1, 1)
   const start = new Date(year, value - 1, 1 - first.getDay())
@@ -826,7 +887,11 @@ function MonthView({
                   <div
                     className={`schedule-day${date.slice(0, 7) !== month ? ' outside' : ''}${date === today() ? ' today' : ''}${holiday ? ' holiday' : ''}`}
                     key={date}
-                    onClick={() => onAdd(date)}
+                    onClick={(event) => setDayMenu({
+                      date,
+                      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 194)),
+                      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 96)),
+                    })}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => onTaskDrop(event, date)}
                   >
@@ -866,7 +931,70 @@ function MonthView({
           )
         })}
       </div>
+      {dayMenu && (
+        <div
+          className="project-context-menu"
+          role="menu"
+          style={{ left: dayMenu.x, top: dayMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <button
+            className="project-context-action"
+            role="menuitem"
+            onClick={() => { const date = dayMenu.date; setDayMenu(null); onAdd(date) }}
+          >
+            새 일정
+          </button>
+          <button
+            className="project-context-action"
+            role="menuitem"
+            onClick={() => { const date = dayMenu.date; setDayMenu(null); onAddMilestone(date) }}
+          >
+            새 마일스톤
+          </button>
+        </div>
+      )}
     </div>
+  )
+}
+
+function MilestoneModal({ draft, projects, onChange, onSave, onClose }: {
+  draft: MilestoneDraft
+  projects: string[]
+  onChange: (draft: MilestoneDraft) => void
+  onSave: () => void
+  onClose: () => void
+}) {
+  return (
+    <Modal title="새 마일스톤" onClose={onClose} onSubmit={onSave} submitLabel="추가">
+      <div className="row">
+        <div className="field">
+          <label>프로젝트</label>
+          <select
+            className="select"
+            value={draft.project}
+            onChange={(event) => onChange({ ...draft, project: event.target.value })}
+          >
+            <option value="">프로젝트 선택</option>
+            {projects.map((value) => <option value={value} key={value}>{value}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>날짜</label>
+          <DateInput value={draft.date} onChange={(value) => onChange({ ...draft, date: value })} />
+        </div>
+      </div>
+      <div className="field">
+        <label>이름</label>
+        <input
+          className="input"
+          autoFocus
+          value={draft.name}
+          onChange={(event) => onChange({ ...draft, name: event.target.value })}
+          placeholder="예) 1차 오픈"
+        />
+      </div>
+    </Modal>
   )
 }
 

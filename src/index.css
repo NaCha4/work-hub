@@ -601,6 +601,7 @@ a { color: var(--accent); }
   font: inherit; font-size: 12px; text-align: left;
 }
 .project-context-action { border-top: 1px solid var(--border); color: var(--fg); }
+.project-context-menu .project-context-action:first-child { border-top: 0; }
 .project-context-action:hover { background: var(--surface-2); }
 .project-context-delete { color: var(--danger); }
 .project-context-delete { border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; }
