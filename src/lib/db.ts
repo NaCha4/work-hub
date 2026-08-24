@@ -23,6 +23,7 @@ export type CollectionName =
   | 'sessions'
   | 'schedules'
   | 'scheduleProjects'
+  | 'scheduleShares'
 
 /** 컬렉션 실시간 구독. 로그인 전에는 enabled=false 로 두어 규칙 위반 호출을 막는다. */
 export function useCollection<T extends { id: string }>(

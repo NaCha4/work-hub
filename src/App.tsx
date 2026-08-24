@@ -10,6 +10,7 @@ import Meals from './pages/Meals'
 import Settings from './pages/Settings'
 import SessionView from './pages/SessionView'
 import Schedule from './pages/Schedule'
+import ScheduleShareView from './pages/ScheduleShareView'
 
 export default function App() {
   return (
@@ -17,6 +18,8 @@ export default function App() {
       {/* 발표 세션은 로그인 없이 열려야 하므로 인증 게이트 바깥에 둔다. */}
       <Route path="/s" element={<SessionView />} />
       <Route path="/s/:code" element={<SessionView />} />
+      {/* 일정 공유도 같은 원칙의 공개 화면이다. 코드 없는 /p 는 인증 게이트로 넘어간다. */}
+      <Route path="/p/:code" element={<ScheduleShareView />} />
       <Route path="*" element={<PrivateApp />} />
     </Routes>
   )

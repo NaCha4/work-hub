@@ -15,14 +15,23 @@ import {
   useCollection,
 } from '../lib/db'
 import { HOLIDAYS } from '../lib/holidays'
-import { nowTime, today } from '../lib/markdown'
+import { dday, formatDate, nowTime, today } from '../lib/markdown'
 import {
+  buildShareSnapshot,
+  publishScheduleShare,
+  scheduleShareUrl,
+} from '../lib/scheduleShare'
+import {
+  PROJECT_STATUS_LABEL,
   SCHEDULE_KIND_LABEL,
   TASK_PRIORITY_LABEL,
+  type Milestone,
   type ProjectCalendar,
   type ProjectCalendarColor,
+  type ProjectStatus,
   type Schedule,
   type ScheduleKind,
+  type ScheduleShare,
   type Task,
 } from '../lib/types'
 
@@ -31,7 +40,7 @@ const PROJECT_COLORS: ProjectCalendarColor[] = ['clay', 'blue', 'green', 'violet
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 const DAY_MS = 86400000
 
-type View = 'month' | 'timeline'
+type View = 'month' | 'timeline' | 'overview'
 
 function dateAt(ymd: string) {
   const [y, m, d] = ymd.split('-').map(Number)
@@ -83,8 +92,11 @@ export default function SchedulePage() {
   const [month, setMonth] = useState(() => today().slice(0, 7))
   const [view, setView] = useState<View>('month')
   const [kind, setKind] = useState<ScheduleKind | ''>('')
+  const { items: shares } = useCollection<ScheduleShare>('scheduleShares', !!member)
   const [draft, setDraft] = useState<Schedule | null>(null)
   const [projectDraft, setProjectDraft] = useState<ProjectCalendar | null>(null)
+  const [projectEditing, setProjectEditing] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [spotlightProject, setSpotlightProject] = useState<string | null>(null)
   const [dragProject, setDragProject] = useState<string | null>(null)
   const [overProject, setOverProject] = useState<string | null>(null)
@@ -111,6 +123,11 @@ export default function SchedulePage() {
   const projectOrder = useMemo(
     () => new Map(calendarNames.map((name, index) => [name, index])),
     [calendarNames],
+  )
+  // 공유 문서는 하나만 유지한다. 다시 발행하면 같은 코드에 스냅샷만 갈아끼운다.
+  const share = useMemo(
+    () => [...shares].sort((a, b) => b.updatedAt - a.updatedAt)[0],
+    [shares],
   )
   const visible = useMemo(() => schedules.filter((item) => {
     if (kind && item.kind !== kind) return false
@@ -146,6 +163,10 @@ export default function SchedulePage() {
       name: '',
       color: PROJECT_COLORS[projectCalendars.length % PROJECT_COLORS.length],
       order: calendarNames.length,
+      due: '',
+      status: 'active',
+      milestones: [],
+      notes: '',
       authorUid: member!.uid,
       authorName: member!.displayName,
       createdAt: 0,
@@ -153,16 +174,28 @@ export default function SchedulePage() {
     }
   }
 
+  /** 설정이 없는 암묵적 프로젝트는 이 시점에 기본값을 채워 문서로 만들 준비를 한다. */
+  function openProjectSettings(name: string, item?: ProjectCalendar) {
+    setProjectEditing(true)
+    setProjectDraft(item ? { ...newProject(), ...item } : { ...newProject(), name })
+  }
+
   async function saveProject() {
     if (!projectDraft) return
     const name = projectDraft.name.trim()
     if (!name) return alert('프로젝트 이름을 입력해 주세요.')
-    if (projectCalendars.some((value) => value.name.toLowerCase() === name.toLowerCase())) {
+    if (!projectEditing && projectCalendars.some((value) => value.name.toLowerCase() === name.toLowerCase())) {
       return alert('같은 이름의 프로젝트가 이미 있습니다.')
     }
-    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = { ...projectDraft, name }
-    await createDoc('scheduleProjects', data)
+    const milestones = (projectDraft.milestones ?? [])
+      .filter((m) => m.name.trim())
+      .map((m) => ({ ...m, name: m.name.trim() }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = { ...projectDraft, name, milestones }
+    if (id) await updateDocById('scheduleProjects', id, data)
+    else await createDoc('scheduleProjects', data)
     setProjectDraft(null)
+    setProjectEditing(false)
   }
 
   async function changeProjectColor(name: string, color: ProjectCalendarColor, item?: ProjectCalendar) {
@@ -274,6 +307,18 @@ export default function SchedulePage() {
     setDraft(null)
   }
 
+  async function publishShare() {
+    const snapshot = buildShareSnapshot(calendarNames, projectMap, schedules, taskMap)
+    if (snapshot.projects.length === 0) return alert('공유할 프로젝트가 없습니다.')
+    await publishScheduleShare(share, snapshot, { uid: member!.uid, name: member!.displayName })
+  }
+
+  async function stopShare() {
+    if (!share) return
+    if (!confirm('일정 공유를 중지할까요?\n기존 링크로는 더 이상 열 수 없습니다.')) return
+    await updateDocById('scheduleShares', share.id, { active: false })
+  }
+
   return (
     <div className="page schedule-page">
       <div className="page-head schedule-head">
@@ -285,7 +330,11 @@ export default function SchedulePage() {
         <div className="schedule-view-switch" aria-label="보기 방식">
           <button className={view === 'month' ? 'active' : ''} onClick={() => setView('month')}>달력</button>
           <button className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>업무별</button>
+          <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}>현황</button>
         </div>
+        <button className="btn ghost" onClick={() => setShareOpen(true)}>
+          {share?.active ? '공유 중' : '공유'}
+        </button>
         <button className="btn primary" onClick={() => openNew()}>
           <span aria-hidden="true">+</span> 일정
         </button>
@@ -330,8 +379,9 @@ export default function SchedulePage() {
               taskMap={taskMap}
               spotlightProject={spotlightProject}
               projectOrder={projectOrder}
+              onOpenProject={(name) => openProjectSettings(name, projectMap.get(name))}
             />
-          ) : (
+          ) : view === 'timeline' ? (
             <TimelineView
               month={month}
               items={visible}
@@ -340,6 +390,13 @@ export default function SchedulePage() {
               spotlightProject={spotlightProject}
               projectOrder={projectOrder}
               onOpen={setDraft}
+            />
+          ) : (
+            <ProjectOverviewView
+              names={calendarNames}
+              projectMap={projectMap}
+              schedules={schedules}
+              onOpenProject={(name) => openProjectSettings(name, projectMap.get(name))}
             />
           )}
         </section>
@@ -371,8 +428,11 @@ export default function SchedulePage() {
                     count={schedules.filter((item) => item.project === name).length}
                     selected={spotlightProject === name}
                     unfocused={spotlightProject !== null && spotlightProject !== name}
+                    due={calendar?.due}
+                    status={calendar?.status}
                     onSelect={() => selectProject(name)}
                     onAdd={() => openNew(today(), undefined, name)}
+                    onSettings={() => openProjectSettings(name, calendar)}
                     onColor={(color) => changeProjectColor(name, color, calendar)}
                     onRename={() => renameProject(name, calendar?.color ?? 'blue', calendar)}
                     onRemoveSchedules={() => removeProjectSchedules(name)}
@@ -432,9 +492,18 @@ export default function SchedulePage() {
       {projectDraft && (
         <ProjectModal
           draft={projectDraft}
+          editing={projectEditing}
           onChange={setProjectDraft}
           onSave={saveProject}
-          onClose={() => setProjectDraft(null)}
+          onClose={() => { setProjectDraft(null); setProjectEditing(false) }}
+        />
+      )}
+      {shareOpen && (
+        <ShareModal
+          share={share}
+          onPublish={publishShare}
+          onStop={stopShare}
+          onClose={() => setShareOpen(false)}
         />
       )}
     </div>
@@ -446,7 +515,7 @@ function Stat({ label, value, tone = '' }: { label: string; value: number; tone?
 }
 
 function ProjectCalendarRow({
-  name, color, count, selected, unfocused, onSelect, onAdd, onColor, onRename, onRemoveSchedules, onRemove,
+  name, color, count, selected, unfocused, due, status, onSelect, onAdd, onSettings, onColor, onRename, onRemoveSchedules, onRemove,
   draggable = false, dragging = false, dragOver = false, onDragStart, onDragOver, onDrop, onDragEnd,
 }: {
   name: string
@@ -454,8 +523,11 @@ function ProjectCalendarRow({
   count: number
   selected: boolean
   unfocused: boolean
+  due?: string
+  status?: ProjectStatus
   onSelect: () => void
   onAdd: () => void
+  onSettings?: () => void
   onColor?: (color: ProjectCalendarColor) => void
   onRename?: () => void
   onRemoveSchedules?: () => void
@@ -483,11 +555,11 @@ function ProjectCalendarRow({
   }, [context])
 
   function openContext(event: ReactMouseEvent) {
-    if (!onRemove && !onColor && !onRename && !onRemoveSchedules) return
+    if (!onRemove && !onColor && !onRename && !onRemoveSchedules && !onSettings) return
     event.preventDefault()
     setContext({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 194)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 212)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 252)),
     })
   }
 
@@ -511,15 +583,23 @@ function ProjectCalendarRow({
       }}
       onDragEnd={onDragEnd}
       onContextMenu={openContext}
-      title={onRemove || onColor || onRename || onRemoveSchedules ? '우클릭하여 프로젝트 관리' : undefined}
+      title={onRemove || onColor || onRename || onRemoveSchedules || onSettings ? '우클릭하여 프로젝트 관리' : undefined}
     >
       <button className="project-calendar-toggle" onClick={onSelect} aria-pressed={selected}>
         <span className={`project-calendar-dot project-${color}`} />
         <span className="project-calendar-name">{name}</span>
+        {status && status !== 'active' && (
+          <span className={`project-calendar-state state-${status}`}>{PROJECT_STATUS_LABEL[status]}</span>
+        )}
+        {due && status !== 'done' && (
+          <span className={`project-calendar-dday${due < today() ? ' overdue' : ''}`} title={`납기 ${due}`}>
+            {dday(due, today())}
+          </span>
+        )}
         <span className="project-calendar-count">{count}</span>
       </button>
       <button className="project-calendar-add" onClick={onAdd} title={`${name} 일정 추가`} aria-label={`${name} 일정 추가`}>+</button>
-      {context && (onColor || onRename || onRemoveSchedules || onRemove) && (
+      {context && (onColor || onRename || onRemoveSchedules || onRemove || onSettings) && (
         <div
           className="project-context-menu"
           role="menu"
@@ -545,6 +625,18 @@ function ProjectCalendarRow({
                 ))}
               </div>
             </>
+          )}
+          {onSettings && (
+            <button
+              className="project-context-action"
+              role="menuitem"
+              onClick={() => {
+                setContext(null)
+                onSettings()
+              }}
+            >
+              프로젝트 설정
+            </button>
           )}
           {onRename && (
             <button
@@ -623,10 +715,19 @@ interface MonthProps {
   taskMap: Map<string, Task>
   spotlightProject: string | null
   projectOrder: Map<string, number>
+  onOpenProject: (name: string) => void
+}
+
+/** 날짜 셀에 얹을 프로젝트 납기·마일스톤 마커 */
+interface DayMarker {
+  project: string
+  color: ProjectCalendarColor
+  label: string
+  done?: boolean
 }
 
 function MonthView({
-  month, items, onOpen, onAdd, onTaskDrop, projectMap, taskMap, spotlightProject, projectOrder,
+  month, items, onOpen, onAdd, onTaskDrop, projectMap, taskMap, spotlightProject, projectOrder, onOpenProject,
 }: MonthProps) {
   const [year, value] = month.split('-').map(Number)
   const first = new Date(year, value - 1, 1)
@@ -636,6 +737,25 @@ function MonthView({
     date.setDate(start.getDate() + index)
     return ymd(date)
   })
+
+  const markers = new Map<string, DayMarker[]>()
+  const putMarker = (date: string, marker: DayMarker) => {
+    if (!date) return
+    markers.set(date, [...(markers.get(date) ?? []), marker])
+  }
+  for (const calendar of projectMap.values()) {
+    if (calendar.due && calendar.status !== 'done') {
+      putMarker(calendar.due, { project: calendar.name, color: calendar.color, label: `${calendar.name} 납기` })
+    }
+    for (const milestone of calendar.milestones ?? []) {
+      putMarker(milestone.date, {
+        project: calendar.name,
+        color: calendar.color,
+        label: milestone.name,
+        done: milestone.done,
+      })
+    }
+  }
 
   return (
     <div className="schedule-calendar card">
@@ -661,6 +781,16 @@ function MonthView({
                 {holiday && <span className="schedule-day-holiday" title={holiday}>{holiday}</span>}
               </div>
               <div className="schedule-day-items">
+                {(markers.get(date) ?? []).map((marker, index) => (
+                  <button
+                    className={`schedule-marker project-${marker.color}${marker.done ? ' done' : ''}${spotlightProject && marker.project !== spotlightProject ? ' dimmed' : ''}`}
+                    key={`m-${index}`}
+                    title={`${marker.project} · ${marker.label}`}
+                    onClick={(event) => { event.stopPropagation(); onOpenProject(marker.project) }}
+                  >
+                    {marker.label}
+                  </button>
+                ))}
                 {list.map((item) => (
                   <button
                     className={`schedule-event ${scheduleTone(item, projectMap)}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}${spotlightProject && scheduleProjectKey(item, taskMap) !== spotlightProject ? ' dimmed' : ''}`}
@@ -677,6 +807,77 @@ function MonthView({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/** 프로젝트별 진행 현황 — 상태·납기·마일스톤 진척을 한 화면에서 본다. */
+function ProjectOverviewView({ names, projectMap, schedules, onOpenProject }: {
+  names: string[]
+  projectMap: Map<string, ProjectCalendar>
+  schedules: Schedule[]
+  onOpenProject: (name: string) => void
+}) {
+  const t = today()
+
+  if (names.length === 0) {
+    return <div className="empty">아직 프로젝트가 없습니다. 사이드바에서 프로젝트를 추가해 보세요.</div>
+  }
+
+  return (
+    <div className="overview-grid">
+      {names.map((name) => {
+        const item = projectMap.get(name)
+        const status = item?.status ?? 'active'
+        const milestones = [...(item?.milestones ?? [])].sort((a, b) => a.date.localeCompare(b.date))
+        const doneCount = milestones.filter((m) => m.done).length
+        const percent = status === 'done'
+          ? 100
+          : milestones.length
+            ? Math.round((doneCount / milestones.length) * 100)
+            : 0
+        const linked = schedules.filter((schedule) => schedule.project === name)
+        const remaining = linked.filter((schedule) => schedule.endDate >= t).length
+        return (
+          <section className="card overview-card" key={name}>
+            <div className="proj-head">
+              <span className={`project-calendar-dot project-${item?.color ?? 'blue'}`} />
+              <h3>{name}</h3>
+              <span className={`project-calendar-state state-${status}`}>{PROJECT_STATUS_LABEL[status]}</span>
+              <span className="spacer" />
+              {item?.due && status !== 'done' && (
+                <span className={`proj-due${item.due < t ? ' overdue' : ''}`}>
+                  납기 {item.due} · {dday(item.due, t)}
+                </span>
+              )}
+            </div>
+            <div className="progress-row">
+              <div className="progress-track"><span className="progress-fill" style={{ width: `${percent}%` }} /></div>
+              <span className="progress-label">{percent}%</span>
+            </div>
+            <p className="proj-meta">
+              마일스톤 {doneCount}/{milestones.length} 완료 · 남은 일정 {remaining}개 · 전체 일정 {linked.length}개
+            </p>
+            {milestones.length > 0 && (
+              <ul className="milestone-list">
+                {milestones.map((milestone) => (
+                  <li className={milestone.done ? 'done' : ''} key={milestone.id}>
+                    <span className="milestone-date">{milestone.date}</span>
+                    <span className="milestone-name">{milestone.name}</span>
+                    <span className={`milestone-state${!milestone.done && milestone.date < t ? ' overdue' : ''}`}>
+                      {milestone.done ? '완료' : dday(milestone.date, t)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {item?.notes?.trim() && <p className="overview-notes">{item.notes}</p>}
+            <div className="overview-actions">
+              <button className="btn ghost sm" onClick={() => onOpenProject(name)}>설정</button>
+            </div>
+          </section>
+        )
+      })}
     </div>
   )
 }
@@ -814,23 +1015,60 @@ function ScheduleModal({ draft, projects, onChange, onSave, onRemove, onClose }:
   )
 }
 
-function ProjectModal({ draft, onChange, onSave, onClose }: {
+const PROJECT_STATUSES: ProjectStatus[] = ['active', 'hold', 'done']
+
+function ProjectModal({ draft, editing, onChange, onSave, onClose }: {
   draft: ProjectCalendar
+  editing: boolean
   onChange: (draft: ProjectCalendar) => void
   onSave: () => void
   onClose: () => void
 }) {
+  const milestones = draft.milestones ?? []
+
+  function patchMilestone(index: number, patch: Partial<Milestone>) {
+    onChange({
+      ...draft,
+      milestones: milestones.map((m, i) => (i === index ? { ...m, ...patch } : m)),
+    })
+  }
+
   return (
-    <Modal title="프로젝트 캘린더 추가" onClose={onClose} onSubmit={onSave} submitLabel="추가">
+    <Modal
+      title={editing ? '프로젝트 설정' : '프로젝트 캘린더 추가'}
+      onClose={onClose}
+      onSubmit={onSave}
+      submitLabel={editing ? '저장' : '추가'}
+    >
       <div className="field">
         <label>프로젝트 이름</label>
         <input
           className="input"
-          autoFocus
+          autoFocus={!editing}
           value={draft.name}
+          disabled={editing}
           onChange={(event) => onChange({ ...draft, name: event.target.value })}
           placeholder="예) 신규 서비스 준비"
         />
+        {editing && <p className="field-hint">이름 변경은 사이드바 우클릭 메뉴에서 합니다.</p>}
+      </div>
+      <div className="row">
+        <div className="field">
+          <label>상태</label>
+          <select
+            className="select"
+            value={draft.status ?? 'active'}
+            onChange={(event) => onChange({ ...draft, status: event.target.value as ProjectStatus })}
+          >
+            {PROJECT_STATUSES.map((value) => (
+              <option value={value} key={value}>{PROJECT_STATUS_LABEL[value]}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>납기일</label>
+          <DateInput value={draft.due ?? ''} onChange={(value) => onChange({ ...draft, due: value })} />
+        </div>
       </div>
       <div className="field">
         <label>캘린더 색상</label>
@@ -848,6 +1086,120 @@ function ProjectModal({ draft, onChange, onSave, onClose }: {
           ))}
         </div>
       </div>
+      <div className="field">
+        <label>마일스톤</label>
+        {milestones.length === 0 && <p className="field-hint">중간 목표를 두면 달력과 공유 화면에 함께 표시됩니다.</p>}
+        {milestones.map((milestone, index) => (
+          <div className="milestone-row" key={milestone.id}>
+            <DateInput value={milestone.date} onChange={(value) => patchMilestone(index, { date: value })} />
+            <input
+              className="input"
+              value={milestone.name}
+              onChange={(event) => patchMilestone(index, { name: event.target.value })}
+              placeholder="예) 1차 오픈"
+            />
+            <label className="milestone-done">
+              <input
+                type="checkbox"
+                checked={milestone.done}
+                onChange={(event) => patchMilestone(index, { done: event.target.checked })}
+              />
+              완료
+            </label>
+            <button
+              type="button"
+              className="btn ghost sm danger"
+              onClick={() => onChange({ ...draft, milestones: milestones.filter((_, i) => i !== index) })}
+            >
+              삭제
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="btn ghost sm"
+          onClick={() => onChange({
+            ...draft,
+            milestones: [...milestones, { id: crypto.randomUUID(), name: '', date: today(), done: false }],
+          })}
+        >
+          + 마일스톤
+        </button>
+      </div>
+      <div className="field">
+        <label>메모</label>
+        <textarea
+          className="textarea"
+          rows={3}
+          value={draft.notes ?? ''}
+          onChange={(event) => onChange({ ...draft, notes: event.target.value })}
+          placeholder="프로젝트 참고 사항. 공유 링크에는 나가지 않습니다."
+        />
+      </div>
+    </Modal>
+  )
+}
+
+function ShareModal({ share, onPublish, onStop, onClose }: {
+  share?: ScheduleShare
+  onPublish: () => Promise<void>
+  onStop: () => Promise<void>
+  onClose: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const active = !!share?.active
+  const url = share ? scheduleShareUrl(share.id) : ''
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true)
+    try {
+      await action()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="일정 공유"
+      onClose={onClose}
+      onSubmit={() => void run(onPublish)}
+      submitLabel={busy ? '발행 중…' : active ? '지금 상태로 다시 발행' : '발행'}
+      extraActions={active ? (
+        <button className="btn ghost danger" disabled={busy} onClick={() => void run(onStop)}>
+          공유 중지
+        </button>
+      ) : undefined}
+    >
+      <p className="share-desc">
+        발행하면 로그인 없이 프로젝트별 일정·납기·마일스톤을 볼 수 있는 링크가 만들어집니다.
+        발행 시점의 내용이 담기므로, 일정을 고친 뒤에는 다시 발행해야 반영됩니다.
+        개인 일정(프로젝트 없는 일정)과 장소·메모는 담기지 않습니다.
+      </p>
+      {active && share && (
+        <>
+          <div className="field">
+            <label>공유 링크</label>
+            <div className="share-link-row">
+              <input className="input" readOnly value={url} onFocus={(event) => event.target.select()} />
+              <button
+                className="btn ghost"
+                onClick={() => {
+                  void navigator.clipboard.writeText(url)
+                  setCopied(true)
+                }}
+              >
+                {copied ? '복사됨' : '복사'}
+              </button>
+            </div>
+          </div>
+          <p className="field-hint">
+            마지막 발행 {formatDate(share.publishedAt)} · 프로젝트 {share.projects.length}개 · 일정 {share.schedules.length}개
+          </p>
+        </>
+      )}
+      {!active && share && <p className="field-hint">공유가 중지된 상태입니다. 다시 발행하면 같은 링크가 살아납니다.</p>}
     </Modal>
   )
 }

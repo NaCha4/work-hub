@@ -101,6 +101,18 @@ service cloud.firestore {
       allow read, create, update, delete: if isMember();
     }
 
+    // 일정 공유 — 발표 세션과 같은 방식의 공개 읽기.
+    // 문서 ID 가 곧 코드이고 발행 시점의 스냅샷만 담으므로 원본 컬렉션은 열리지 않는다.
+    // get 은 코드를 정확히 알아야만 성공하고 list 는 멤버만 되므로 훑을 수 없다.
+    match /scheduleShares/{code} {
+      allow get: if isMember() || resource.data.active == true;
+      allow list: if isMember();
+      allow create: if isMember()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isMember()
+        && (resource.data.createdBy == request.auth.uid || isOwner());
+    }
+
     // 식사 기록. 업무 자료는 아니지만 접근 조건은 나머지와 같다.
     match /meals/{id} {
       allow read: if isMember();

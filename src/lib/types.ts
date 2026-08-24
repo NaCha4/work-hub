@@ -38,6 +38,16 @@ export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export type ScheduleKind = 'personal' | 'work' | 'meeting' | 'focus' | 'deadline'
 export type ProjectCalendarColor = 'clay' | 'blue' | 'green' | 'violet' | 'yellow' | 'red'
+export type ProjectStatus = 'active' | 'hold' | 'done'
+
+/** 프로젝트의 중간 목표. 개수가 적어 별도 컬렉션 없이 프로젝트 문서 안에 담는다. */
+export interface Milestone {
+  id: Id
+  name: string
+  /** YYYY-MM-DD */
+  date: string
+  done: boolean
+}
 
 /** 일정 화면에서 켜고 끄는 프로젝트 캘린더 설정. */
 export interface ProjectCalendar {
@@ -46,6 +56,12 @@ export interface ProjectCalendar {
   color: ProjectCalendarColor
   /** 프로젝트 패널과 일정표에서 함께 사용하는 정렬 순서 */
   order?: number
+  /** 납기일 YYYY-MM-DD. 없으면 빈 문자열 */
+  due?: string
+  status?: ProjectStatus
+  milestones?: Milestone[]
+  /** 프로젝트 메모. 공개 공유에는 내보내지 않는다. */
+  notes?: string
   authorUid: string
   authorName: string
   createdAt: number
@@ -205,6 +221,44 @@ export interface Session {
   updatedAt: number
 }
 
+/** 공개 공유에 담는 프로젝트 요약. 메모처럼 밖에 내보내면 안 되는 필드는 뺀다. */
+export interface SharedProject {
+  name: string
+  color: ProjectCalendarColor
+  status: ProjectStatus
+  due: string
+  milestones: Milestone[]
+}
+
+/** 공개 공유에 담는 일정 요약. 장소·메모는 내보내지 않는다. */
+export interface SharedSchedule {
+  title: string
+  kind: ScheduleKind
+  project: string
+  startDate: string
+  endDate: string
+  startTime: string
+  endTime: string
+  allDay: boolean
+}
+
+/**
+ * 일정 공유 — 발표 세션과 같은 방식의 공개 링크.
+ * 문서 ID 가 곧 코드이며, 발행 시점의 스냅샷을 담아 원본 데이터는 노출하지 않는다.
+ */
+export interface ScheduleShare {
+  id: Id
+  active: boolean
+  /** 발행 시각 ms epoch */
+  publishedAt: number
+  projects: SharedProject[]
+  schedules: SharedSchedule[]
+  createdBy: string
+  createdByName: string
+  createdAt: number
+  updatedAt: number
+}
+
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   backlog: '대기',
   todo: '할 일',
@@ -224,6 +278,12 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
   normal: '보통',
   high: '높음',
   urgent: '긴급',
+}
+
+export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
+  active: '진행 중',
+  hold: '보류',
+  done: '완료',
 }
 
 export const SCHEDULE_KIND_LABEL: Record<ScheduleKind, string> = {
