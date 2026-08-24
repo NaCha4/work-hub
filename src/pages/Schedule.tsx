@@ -190,10 +190,10 @@ export default function SchedulePage() {
     if (!projectEditing && projectCalendars.some((value) => value.name.toLowerCase() === name.toLowerCase())) {
       return alert('같은 이름의 프로젝트가 이미 있습니다.')
     }
+    // 순서는 모달에서 드래그로 정한 그대로 둔다. 날짜순 정렬로 덮어쓰지 않는다.
     const milestones = (projectDraft.milestones ?? [])
       .filter((m) => m.name.trim())
       .map((m) => ({ ...m, name: m.name.trim() }))
-      .sort((a, b) => a.date.localeCompare(b.date))
     const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = { ...projectDraft, name, milestones }
     if (id) await updateDocById('scheduleProjects', id, data)
     else await createDoc('scheduleProjects', data)
@@ -888,7 +888,7 @@ function ProjectOverviewView({ names, projectMap, schedules, onOpenProject }: {
       {names.map((name) => {
         const item = projectMap.get(name)
         const status = item?.status ?? 'active'
-        const milestones = [...(item?.milestones ?? [])].sort((a, b) => a.date.localeCompare(b.date))
+        const milestones = item?.milestones ?? []
         const doneCount = milestones.filter((m) => m.done).length
         const percent = status === 'done'
           ? 100
@@ -1084,12 +1084,25 @@ function ProjectModal({ draft, editing, onChange, onSave, onClose }: {
   onClose: () => void
 }) {
   const milestones = draft.milestones ?? []
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
 
   function patchMilestone(index: number, patch: Partial<Milestone>) {
     onChange({
       ...draft,
       milestones: milestones.map((m, i) => (i === index ? { ...m, ...patch } : m)),
     })
+  }
+
+  function dropMilestone(target: number) {
+    const source = dragIndex
+    setDragIndex(null)
+    setOverIndex(null)
+    if (source === null || source === target) return
+    const next = [...milestones]
+    const [moved] = next.splice(source, 1)
+    next.splice(target, 0, moved)
+    onChange({ ...draft, milestones: next })
   }
 
   return (
@@ -1149,7 +1162,26 @@ function ProjectModal({ draft, editing, onChange, onSave, onClose }: {
         <label>마일스톤</label>
         {milestones.length === 0 && <p className="field-hint">중간 목표를 두면 달력과 공유 화면에 함께 표시됩니다.</p>}
         {milestones.map((milestone, index) => (
-          <div className="milestone-row" key={milestone.id}>
+          <div
+            className={`milestone-row${dragIndex === index ? ' dragging' : ''}${overIndex === index ? ' drag-over' : ''}`}
+            key={milestone.id}
+            onDragOver={(event) => {
+              if (dragIndex === null) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              setOverIndex(index)
+            }}
+            onDrop={(event) => { event.preventDefault(); dropMilestone(index) }}
+          >
+            <span
+              className="milestone-grip"
+              draggable
+              title="끌어서 순서 변경"
+              onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragIndex(index) }}
+              onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
+            >
+              <Icon name="grip" size={12} />
+            </span>
             <DateInput value={milestone.date} onChange={(value) => patchMilestone(index, { date: value })} />
             <input
               className="input"

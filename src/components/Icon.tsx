@@ -21,6 +21,7 @@ export type IconName =
   | 'chevron-right'
   | 'brand'
   | 'schedule'
+  | 'grip'
 
 const PATHS: Record<IconName, ReactNode> = {
   dashboard: (
@@ -116,6 +117,7 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M8 13h3v3H8zM14 13h2M14 17h2" />
     </>
   ),
+  grip: <path d="M5 9h14M5 15h14" />,
 }
 
 interface Props {

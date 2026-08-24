@@ -31,7 +31,7 @@ export function buildShareSnapshot(
       color: item?.color ?? 'blue',
       status: item?.status ?? 'active',
       due: item?.due ?? '',
-      milestones: [...(item?.milestones ?? [])].sort((a, b) => a.date.localeCompare(b.date)),
+      milestones: item?.milestones ?? [],
     } satisfies SharedProject
   })
   const names = new Set(calendarNames)
