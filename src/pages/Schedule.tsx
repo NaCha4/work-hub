@@ -36,7 +36,10 @@ import {
 } from '../lib/types'
 
 const KINDS: ScheduleKind[] = ['personal', 'work', 'meeting', 'focus', 'deadline']
-const PROJECT_COLORS: ProjectCalendarColor[] = ['clay', 'blue', 'green', 'violet', 'yellow', 'red']
+const PROJECT_COLORS: ProjectCalendarColor[] = [
+  'clay', 'blue', 'green', 'violet', 'yellow', 'red',
+  'orange', 'lime', 'teal', 'indigo', 'rose', 'gray',
+]
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 const DAY_MS = 86400000
 
@@ -559,7 +562,7 @@ function ProjectCalendarRow({
     event.preventDefault()
     setContext({
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 194)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 252)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 277)),
     })
   }
 
@@ -683,6 +686,7 @@ function ProjectCalendarRow({
 function colorLabel(color: ProjectCalendarColor) {
   const labels: Record<ProjectCalendarColor, string> = {
     clay: '갈색', blue: '파랑', green: '초록', violet: '보라', yellow: '노랑', red: '빨강',
+    orange: '주황', lime: '연두', teal: '청록', indigo: '남색', rose: '분홍', gray: '회색',
   }
   return labels[color]
 }

@@ -37,7 +37,9 @@ export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export type ScheduleKind = 'personal' | 'work' | 'meeting' | 'focus' | 'deadline'
-export type ProjectCalendarColor = 'clay' | 'blue' | 'green' | 'violet' | 'yellow' | 'red'
+export type ProjectCalendarColor =
+  | 'clay' | 'blue' | 'green' | 'violet' | 'yellow' | 'red'
+  | 'orange' | 'lime' | 'teal' | 'indigo' | 'rose' | 'gray'
 export type ProjectStatus = 'active' | 'hold' | 'done'
 
 /** 프로젝트의 중간 목표. 개수가 적어 별도 컬렉션 없이 프로젝트 문서 안에 담는다. */

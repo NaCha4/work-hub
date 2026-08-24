@@ -495,6 +495,12 @@ a { color: var(--accent); }
 .project-violet { background: #eee8f5; color: #6d5089; }
 .project-yellow { background: #f8efd8; color: #886615; }
 .project-red { background: #f8e5e5; color: #9a3f3b; }
+.project-orange { background: #f9ead9; color: #96551f; }
+.project-lime { background: #edf2da; color: #667a1e; }
+.project-teal { background: #ddf1ee; color: #26756c; }
+.project-indigo { background: #e5e9f8; color: #48579e; }
+.project-rose { background: #f9e6ee; color: #9c4770; }
+.project-gray { background: #ececea; color: #5c5c56; }
 :root[data-theme='dark'] .kind-personal { background: #3a312a; color: #d3b89e; }
 :root[data-theme='dark'] .kind-work { background: #263945; color: #9ec5dd; }
 :root[data-theme='dark'] .kind-meeting { background: #352f40; color: #c2afd6; }
@@ -506,6 +512,12 @@ a { color: var(--accent); }
 :root[data-theme='dark'] .project-violet { background: #372f42; color: #c5afd9; }
 :root[data-theme='dark'] .project-yellow { background: #403822; color: #dac079; }
 :root[data-theme='dark'] .project-red { background: #442b2a; color: #e3a19e; }
+:root[data-theme='dark'] .project-orange { background: #42301e; color: #ddab7d; }
+:root[data-theme='dark'] .project-lime { background: #343b1e; color: #c1d17f; }
+:root[data-theme='dark'] .project-teal { background: #22403c; color: #8fcdc4; }
+:root[data-theme='dark'] .project-indigo { background: #2c3249; color: #a9b5e8; }
+:root[data-theme='dark'] .project-rose { background: #422b36; color: #dda2bd; }
+:root[data-theme='dark'] .project-gray { background: #343431; color: #b6b6ae; }
 
 .schedule-side { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .schedule-side > .card + .card { margin-top: 0; }
