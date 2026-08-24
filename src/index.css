@@ -968,14 +968,26 @@ a { color: var(--accent); }
   margin-bottom: 12px; padding: 10px 14px;
 }
 .share-toolbar .spacer { flex: 1; }
-.share-project-select { width: 220px; font-weight: 600; }
+/* 프로젝트 전환 — 전 항목이 한 줄에 다 보이고, 넘치면 그 줄 안에서 가로 스크롤 */
+.share-project-switch {
+  display: inline-flex; max-width: 100%; padding: 2px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+  overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch;
+}
+.share-project-switch button {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  border: 0; border-radius: 6px; background: transparent;
+  padding: 6px 13px; cursor: pointer; color: var(--muted);
+  font: inherit; font-size: 13px; font-weight: 600;
+}
+.share-project-switch button:hover { color: var(--fg); }
+.share-project-switch button.active { background: var(--fg); color: var(--surface); }
 .share-cal-layout {
   display: grid; grid-template-columns: minmax(0, 1fr) 320px;
   gap: 12px; align-items: start;
 }
 @media (max-width: 880px) {
   .share-cal-layout { grid-template-columns: 1fr; }
-  .share-project-select { width: 100%; }
 }
 .share-cal-main { min-width: 0; }
 .share-view .schedule-day { cursor: default; }

@@ -125,18 +125,19 @@ export default function ScheduleShareView() {
           <button className="btn ghost sm" onClick={() => setMonth(today().slice(0, 7))}>오늘</button>
         </div>
         <span className="spacer" />
-        {selectedProject && <span className={`project-calendar-dot project-${selectedProject.color}`} />}
-        <select
-          className="select share-project-select"
-          value={selected}
-          onChange={(event) => setSelected(event.target.value)}
-          aria-label="프로젝트 선택"
-        >
-          <option value="">전체 프로젝트</option>
+        <div className="share-project-switch" role="tablist" aria-label="프로젝트 선택">
+          <button className={selected === '' ? 'active' : ''} onClick={() => setSelected('')}>전체</button>
           {share.projects.map((project) => (
-            <option value={project.name} key={project.name}>{project.name}</option>
+            <button
+              className={selected === project.name ? 'active' : ''}
+              key={project.name}
+              onClick={() => setSelected(project.name)}
+            >
+              <span className={`project-calendar-dot project-${project.color}`} />
+              {project.name}
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
       <div className="share-cal-layout">
