@@ -238,12 +238,12 @@ function ProjectPanel({ project, schedules }: {
         )}
       </section>
 
-      {project.notes?.trim() && (
-        <section className="card">
-          <h3 className="share-side-title">메모</h3>
-          <p className="overview-notes">{project.notes}</p>
-        </section>
-      )}
+      <section className="card">
+        <h3 className="share-side-title">메모</h3>
+        {project.notes?.trim()
+          ? <p className="overview-notes">{project.notes}</p>
+          : <p className="share-empty">등록된 메모가 없습니다.</p>}
+      </section>
     </>
   )
 }
