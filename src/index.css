@@ -938,10 +938,12 @@ a { color: var(--accent); }
 
 /* 프로젝트 설정 모달 — 마일스톤 편집 */
 .field-hint { margin: 4px 0 6px; color: var(--muted); font-size: 11.5px; }
-.milestone-row { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+.milestone-item { margin-bottom: 9px; }
+.milestone-item.dragging { opacity: 0.45; }
+.milestone-item.drag-over { box-shadow: 0 -2px 0 var(--accent); }
+.milestone-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
 .milestone-row .input { flex: 1; min-width: 0; }
-.milestone-row.dragging { opacity: 0.45; }
-.milestone-row.drag-over { box-shadow: 0 -2px 0 var(--accent); }
+.milestone-notes-input { font-size: 12px; margin-left: 15px; width: calc(100% - 15px); }
 .milestone-grip {
   flex: 0 0 auto; display: grid; place-items: center;
   padding: 4px 1px; color: var(--muted); cursor: grab;
@@ -959,11 +961,47 @@ a { color: var(--accent); }
 
 /* 일정 공유 조회 화면 — 인증 게이트 바깥이라 Layout 없이 혼자 선다 */
 .share-view { max-width: 760px; margin: 0 auto; padding: 28px 16px 60px; }
+.share-view-wide { max-width: 1080px; }
+.share-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.share-tabs button {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  padding: 4px 12px; cursor: pointer; font: inherit; font-size: 12.5px;
+}
+.share-tabs button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.share-cal-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 12px; align-items: start;
+}
+@media (max-width: 880px) { .share-cal-layout { grid-template-columns: 1fr; } }
+.share-cal-main { min-width: 0; }
+.share-month-nav { margin-bottom: 10px; }
+.share-view .schedule-day { cursor: default; }
+.share-view .schedule-day:hover { box-shadow: none; }
+.share-view .schedule-event { cursor: default; }
+.share-side { min-width: 0; }
+.share-side .card + .card { margin-top: 12px; }
+.share-side-title { margin: 0 0 6px; font-size: 14px; }
+.share-side-project {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: 0; border-top: 1px solid var(--border); background: transparent;
+  padding: 8px 2px; cursor: pointer; font: inherit; font-size: 12.5px; text-align: left;
+}
+.share-side-project:hover { background: var(--surface-2); }
+.share-side-project .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.share-side-project .mini-track {
+  flex: 0 0 64px; height: 6px; margin-left: auto;
+  border-radius: 999px; background: var(--surface-2); overflow: hidden;
+}
+.share-side-project .mini-fill { display: block; height: 100%; background: var(--ok); }
+.share-side-project .pct {
+  flex: 0 0 34px; text-align: right;
+  color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.overdue-text { color: var(--danger); }
 .share-head { margin-bottom: 18px; }
 .share-head h1 { margin: 0 0 4px; font-size: 21px; }
 .share-head p { margin: 0; font-size: 12.5px; }
-.share-project { margin-bottom: 14px; padding: 16px; }
-
 /* 프로젝트 현황 — 일정 화면의 현황 보기와 공유 조회 화면이 함께 쓴다 */
 .proj-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .proj-head h2, .proj-head h3 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
@@ -988,6 +1026,8 @@ a { color: var(--accent); }
 .milestone-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .milestone-state { margin-left: auto; flex: 0 0 auto; color: var(--muted); font-size: 11.5px; font-weight: 700; }
 .milestone-state.overdue { color: var(--danger); }
+.milestone-list li { flex-wrap: wrap; }
+.milestone-memo { flex: 1 0 100%; color: var(--muted); font-size: 11.5px; white-space: pre-wrap; }
 
 /* 일정 화면 — 현황 보기 */
 .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }

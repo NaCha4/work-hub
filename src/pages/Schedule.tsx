@@ -50,6 +50,7 @@ interface MilestoneDraft {
   project: string
   date: string
   name: string
+  notes: string
 }
 
 function dateAt(ymd: string) {
@@ -193,7 +194,7 @@ export default function SchedulePage() {
 
   function openNewMilestone(date: string) {
     const focused = spotlightProject && spotlightProject !== '__none__' ? spotlightProject : ''
-    setMilestoneDraft({ project: focused || calendarNames[0] || '', date, name: '' })
+    setMilestoneDraft({ project: focused || calendarNames[0] || '', date, name: '', notes: '' })
   }
 
   async function saveMilestone() {
@@ -202,7 +203,13 @@ export default function SchedulePage() {
     if (!milestoneDraft.project) return alert('프로젝트를 선택해 주세요.')
     if (!name) return alert('마일스톤 이름을 입력해 주세요.')
     if (!milestoneDraft.date) return alert('날짜를 입력해 주세요.')
-    const milestone: Milestone = { id: crypto.randomUUID(), name, date: milestoneDraft.date, done: false }
+    const milestone: Milestone = {
+      id: crypto.randomUUID(),
+      name,
+      date: milestoneDraft.date,
+      done: false,
+      notes: milestoneDraft.notes.trim(),
+    }
     const item = projectMap.get(milestoneDraft.project)
     if (item) {
       await updateDocById('scheduleProjects', item.id, { milestones: [...(item.milestones ?? []), milestone] })
@@ -994,6 +1001,16 @@ function MilestoneModal({ draft, projects, onChange, onSave, onClose }: {
           placeholder="예) 1차 오픈"
         />
       </div>
+      <div className="field">
+        <label>메모</label>
+        <textarea
+          className="textarea"
+          rows={2}
+          value={draft.notes}
+          onChange={(event) => onChange({ ...draft, notes: event.target.value })}
+          placeholder="선택 사항. 공유 화면에도 표시됩니다."
+        />
+      </div>
     </Modal>
   )
 }
@@ -1054,6 +1071,7 @@ function ProjectOverviewView({ names, projectMap, schedules, onOpenProject }: {
                     <span className={`milestone-state${!milestone.done && milestone.date < t ? ' overdue' : ''}`}>
                       {milestone.done ? '완료' : dday(milestone.date, t)}
                     </span>
+                    {milestone.notes?.trim() && <span className="milestone-memo">{milestone.notes}</span>}
                   </li>
                 ))}
               </ul>
@@ -1291,7 +1309,7 @@ function ProjectModal({ draft, editing, onChange, onSave, onClose }: {
         {milestones.length === 0 && <p className="field-hint">중간 목표를 두면 달력과 공유 화면에 함께 표시됩니다.</p>}
         {milestones.map((milestone, index) => (
           <div
-            className={`milestone-row${dragIndex === index ? ' dragging' : ''}${overIndex === index ? ' drag-over' : ''}`}
+            className={`milestone-item${dragIndex === index ? ' dragging' : ''}${overIndex === index ? ' drag-over' : ''}`}
             key={milestone.id}
             onDragOver={(event) => {
               if (dragIndex === null) return
@@ -1301,37 +1319,45 @@ function ProjectModal({ draft, editing, onChange, onSave, onClose }: {
             }}
             onDrop={(event) => { event.preventDefault(); dropMilestone(index) }}
           >
-            <span
-              className="milestone-grip"
-              draggable
-              title="끌어서 순서 변경"
-              onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragIndex(index) }}
-              onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
-            >
-              <Icon name="grip" size={12} />
-            </span>
-            <DateInput value={milestone.date} onChange={(value) => patchMilestone(index, { date: value })} />
-            <input
-              className="input"
-              value={milestone.name}
-              onChange={(event) => patchMilestone(index, { name: event.target.value })}
-              placeholder="예) 1차 오픈"
-            />
-            <label className="milestone-done">
+            <div className="milestone-row">
+              <span
+                className="milestone-grip"
+                draggable
+                title="끌어서 순서 변경"
+                onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragIndex(index) }}
+                onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
+              >
+                <Icon name="grip" size={12} />
+              </span>
+              <DateInput value={milestone.date} onChange={(value) => patchMilestone(index, { date: value })} />
               <input
-                type="checkbox"
-                checked={milestone.done}
-                onChange={(event) => patchMilestone(index, { done: event.target.checked })}
+                className="input"
+                value={milestone.name}
+                onChange={(event) => patchMilestone(index, { name: event.target.value })}
+                placeholder="예) 1차 오픈"
               />
-              완료
-            </label>
-            <button
-              type="button"
-              className="btn ghost sm danger"
-              onClick={() => onChange({ ...draft, milestones: milestones.filter((_, i) => i !== index) })}
-            >
-              삭제
-            </button>
+              <label className="milestone-done">
+                <input
+                  type="checkbox"
+                  checked={milestone.done}
+                  onChange={(event) => patchMilestone(index, { done: event.target.checked })}
+                />
+                완료
+              </label>
+              <button
+                type="button"
+                className="btn ghost sm danger"
+                onClick={() => onChange({ ...draft, milestones: milestones.filter((_, i) => i !== index) })}
+              >
+                삭제
+              </button>
+            </div>
+            <input
+              className="input milestone-notes-input"
+              value={milestone.notes ?? ''}
+              onChange={(event) => patchMilestone(index, { notes: event.target.value })}
+              placeholder="메모 (선택) — 공유 화면에도 표시됩니다"
+            />
           </div>
         ))}
         <button
@@ -1394,7 +1420,7 @@ function ShareModal({ share, onPublish, onStop, onClose }: {
       <p className="share-desc">
         발행하면 로그인 없이 프로젝트별 일정·납기·마일스톤을 볼 수 있는 링크가 만들어집니다.
         발행 시점의 내용이 담기므로, 일정을 고친 뒤에는 다시 발행해야 반영됩니다.
-        개인 일정(프로젝트 없는 일정)과 장소·메모는 담기지 않습니다.
+        일정·마일스톤 메모는 함께 공개되고, 개인 일정(프로젝트 없는 일정)과 장소·프로젝트 메모는 담기지 않습니다.
       </p>
       {active && share && (
         <>

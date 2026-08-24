@@ -49,6 +49,8 @@ export interface Milestone {
   /** YYYY-MM-DD */
   date: string
   done: boolean
+  /** 메모. 공유 화면에도 그대로 나간다. */
+  notes?: string
 }
 
 /** 일정 화면에서 켜고 끄는 프로젝트 캘린더 설정. */
@@ -232,7 +234,7 @@ export interface SharedProject {
   milestones: Milestone[]
 }
 
-/** 공개 공유에 담는 일정 요약. 장소·메모는 내보내지 않는다. */
+/** 공개 공유에 담는 일정 요약. 장소는 내보내지 않는다. */
 export interface SharedSchedule {
   title: string
   kind: ScheduleKind
@@ -242,6 +244,7 @@ export interface SharedSchedule {
   startTime: string
   endTime: string
   allDay: boolean
+  notes: string
 }
 
 /**
