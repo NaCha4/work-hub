@@ -761,49 +761,104 @@ function MonthView({
     }
   }
 
+  const weeks = Array.from({ length: 6 }, (_, index) => cells.slice(index * 7, index * 7 + 7))
+
   return (
     <div className="schedule-calendar card">
       <div className="schedule-weekdays">
         {DOW.map((day) => <div key={day}>{day}</div>)}
       </div>
       <div className="schedule-calendar-grid">
-        {cells.map((date) => {
-          const list = items
-            .filter((item) => item.startDate <= date && item.endDate >= date)
-            .sort((a, b) => compareSchedules(a, b, taskMap, projectOrder))
-          const holiday = HOLIDAYS[date]
+        {weeks.map((week) => {
+          const weekStart = week[0]
+          const weekEnd = week[6]
+
+          // 여러 날에 걸친 일정을 날짜 칸 단위로 자르지 않고 주 단위 막대 하나로 편다.
+          // 레인은 주마다 다시 배정하므로 같은 일정이 다음 주에서 줄이 바뀔 수 있다.
+          const lanes: boolean[][] = []
+          const claim = (col: number, span: number) => {
+            for (let lane = 0; ; lane += 1) {
+              lanes[lane] ??= []
+              if (lanes[lane].slice(col, col + span).some(Boolean)) continue
+              for (let i = col; i < col + span; i += 1) lanes[lane][i] = true
+              return lane
+            }
+          }
+
+          const markerBars = week.flatMap((date, col) =>
+            (markers.get(date) ?? []).map((marker, index) => ({
+              key: `m-${date}-${index}`,
+              col,
+              lane: claim(col, 1),
+              marker,
+            })),
+          )
+          const eventBars = items
+            .filter((item) => item.startDate <= weekEnd && item.endDate >= weekStart)
+            .sort((a, b) =>
+              a.startDate.localeCompare(b.startDate)
+              || daysBetween(b.startDate, b.endDate) - daysBetween(a.startDate, a.endDate)
+              || compareSchedules(a, b, taskMap, projectOrder))
+            .map((item) => {
+              const from = item.startDate < weekStart ? weekStart : item.startDate
+              const to = item.endDate > weekEnd ? weekEnd : item.endDate
+              const col = daysBetween(weekStart, from)
+              const span = daysBetween(from, to) + 1
+              return {
+                item,
+                col,
+                span,
+                lane: claim(col, span),
+                continuesLeft: item.startDate < weekStart,
+                continuesRight: item.endDate > weekEnd,
+              }
+            })
+
           return (
             <div
-              className={`schedule-day${date.slice(0, 7) !== month ? ' outside' : ''}${date === today() ? ' today' : ''}${holiday ? ' holiday' : ''}`}
-              key={date}
-              onClick={() => onAdd(date)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => onTaskDrop(event, date)}
+              className="schedule-week"
+              key={weekStart}
+              style={{ minHeight: 38 + lanes.length * 22 }}
             >
-              <div className="schedule-day-head">
-                <div className="schedule-day-number">{Number(date.slice(8))}</div>
-                {holiday && <span className="schedule-day-holiday" title={holiday}>{holiday}</span>}
-              </div>
-              <div className="schedule-day-items">
-                {(markers.get(date) ?? []).map((marker, index) => (
-                  <button
-                    className={`schedule-marker project-${marker.color}${marker.done ? ' done' : ''}${spotlightProject && marker.project !== spotlightProject ? ' dimmed' : ''}`}
-                    key={`m-${index}`}
-                    title={`${marker.project} · ${marker.label}`}
-                    onClick={(event) => { event.stopPropagation(); onOpenProject(marker.project) }}
+              {week.map((date) => {
+                const holiday = HOLIDAYS[date]
+                return (
+                  <div
+                    className={`schedule-day${date.slice(0, 7) !== month ? ' outside' : ''}${date === today() ? ' today' : ''}${holiday ? ' holiday' : ''}`}
+                    key={date}
+                    onClick={() => onAdd(date)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => onTaskDrop(event, date)}
                   >
-                    {marker.label}
+                    <div className="schedule-day-head">
+                      <div className="schedule-day-number">{Number(date.slice(8))}</div>
+                      {holiday && <span className="schedule-day-holiday" title={holiday}>{holiday}</span>}
+                    </div>
+                  </div>
+                )
+              })}
+              <div className="schedule-week-bars">
+                {markerBars.map((bar) => (
+                  <button
+                    className={`schedule-marker project-${bar.marker.color}${bar.marker.done ? ' done' : ''}${spotlightProject && bar.marker.project !== spotlightProject ? ' dimmed' : ''}`}
+                    key={bar.key}
+                    style={{ gridColumn: `${bar.col + 1} / span 1`, gridRow: bar.lane + 1 }}
+                    title={`${bar.marker.project} · ${bar.marker.label}`}
+                    onClick={() => onOpenProject(bar.marker.project)}
+                  >
+                    {bar.marker.label}
                   </button>
                 ))}
-                {list.map((item) => (
+                {eventBars.map((bar) => (
                   <button
-                    className={`schedule-event ${scheduleTone(item, projectMap)}${item.startDate < date ? ' continues-left' : ''}${item.endDate > date ? ' continues-right' : ''}${spotlightProject && scheduleProjectKey(item, taskMap) !== spotlightProject ? ' dimmed' : ''}`}
-                    key={item.id}
-                    title={item.title}
-                    onClick={(event) => { event.stopPropagation(); onOpen(item) }}
+                    className={`schedule-event ${scheduleTone(bar.item, projectMap)}${bar.continuesLeft ? ' continues-left' : ''}${bar.continuesRight ? ' continues-right' : ''}${spotlightProject && scheduleProjectKey(bar.item, taskMap) !== spotlightProject ? ' dimmed' : ''}`}
+                    key={bar.item.id}
+                    style={{ gridColumn: `${bar.col + 1} / span ${bar.span}`, gridRow: bar.lane + 1 }}
+                    title={bar.item.title}
+                    onClick={() => onOpen(bar.item)}
                   >
-                    {!item.allDay && item.startDate === date && <span>{item.startTime}</span>}
-                    <b>{item.title}</b>
+                    {!bar.item.allDay && !bar.continuesLeft && bar.item.startTime && <span>{bar.item.startTime}</span>}
+                    <b>{bar.item.title}</b>
                   </button>
                 ))}
               </div>

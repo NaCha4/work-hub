@@ -434,13 +434,31 @@ a { color: var(--accent); }
 }
 .schedule-main { min-width: 0; }
 .schedule-calendar { padding: 0; overflow: hidden; box-shadow: none; }
-.schedule-weekdays, .schedule-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.schedule-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .schedule-weekdays {
   border-bottom: 1px solid var(--border); background: var(--surface-2);
   color: var(--muted); font-size: 11px; font-weight: 700; text-align: center;
 }
 .schedule-weekdays div { padding: 6px 0; }
-.schedule-calendar-grid { background: var(--border); gap: 1px; }
+.schedule-calendar-grid { display: flex; flex-direction: column; gap: 1px; background: var(--border); }
+.schedule-week {
+  position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px; background: var(--border);
+}
+/* 날짜 칸 위에 겹쳐, 여러 날에 걸친 일정을 한 막대로 그린다.
+   열 정의를 날짜 그리드와 똑같이 맞춰야 막대가 칸 경계와 어긋나지 않는다. */
+.schedule-week-bars {
+  position: absolute; inset: 32px 0 4px;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: 20px; column-gap: 1px; row-gap: 2px;
+  align-content: start; overflow: hidden; pointer-events: none;
+}
+.schedule-week-bars .schedule-event,
+.schedule-week-bars .schedule-marker {
+  pointer-events: auto; width: auto; min-width: 0; margin: 0 4px;
+}
+.schedule-week-bars .schedule-event.continues-left { margin-left: 0; }
+.schedule-week-bars .schedule-event.continues-right { margin-right: 0; }
 .schedule-day {
   min-width: 0; min-height: 116px; padding: 5px;
   background: var(--surface); cursor: pointer; overflow: hidden;
@@ -469,7 +487,6 @@ a { color: var(--accent); }
 }
 .schedule-marker.done { opacity: 0.45; text-decoration: line-through; }
 .schedule-marker.dimmed { opacity: 0.18; }
-.schedule-day-items { display: flex; flex-direction: column; gap: 2px; }
 .schedule-event {
   width: 100%; min-width: 0; display: flex; align-items: center; gap: 4px;
   border: 0; border-left: 3px solid currentColor; border-radius: 3px;
