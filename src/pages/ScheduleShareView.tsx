@@ -113,32 +113,34 @@ export default function ScheduleShareView() {
         </p>
       </header>
 
-      <div className="share-tabs" role="tablist">
-        <button className={selected === '' ? 'active' : ''} onClick={() => setSelected('')}>전체</button>
-        {share.projects.map((project) => (
-          <button
-            className={selected === project.name ? 'active' : ''}
-            key={project.name}
-            onClick={() => setSelected(project.name)}
-          >
-            <span className={`project-calendar-dot project-${project.color}`} />
-            {project.name}
+      <div className="share-toolbar card">
+        <div className="schedule-month-nav">
+          <button className="btn ghost sm" onClick={() => shiftMonth(-1)} aria-label="이전 달">
+            <Icon name="chevron-left" />
           </button>
-        ))}
+          <strong>{Number(month.slice(0, 4))}년 {Number(month.slice(5))}월</strong>
+          <button className="btn ghost sm" onClick={() => shiftMonth(1)} aria-label="다음 달">
+            <Icon name="chevron-right" />
+          </button>
+          <button className="btn ghost sm" onClick={() => setMonth(today().slice(0, 7))}>오늘</button>
+        </div>
+        <span className="spacer" />
+        {selectedProject && <span className={`project-calendar-dot project-${selectedProject.color}`} />}
+        <select
+          className="select share-project-select"
+          value={selected}
+          onChange={(event) => setSelected(event.target.value)}
+          aria-label="프로젝트 선택"
+        >
+          <option value="">전체 프로젝트</option>
+          {share.projects.map((project) => (
+            <option value={project.name} key={project.name}>{project.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="share-cal-layout">
         <div className="share-cal-main">
-          <div className="schedule-month-nav share-month-nav">
-            <button className="btn ghost sm" onClick={() => shiftMonth(-1)} aria-label="이전 달">
-              <Icon name="chevron-left" />
-            </button>
-            <strong>{Number(month.slice(0, 4))}년 {Number(month.slice(5))}월</strong>
-            <button className="btn ghost sm" onClick={() => shiftMonth(1)} aria-label="다음 달">
-              <Icon name="chevron-right" />
-            </button>
-            <button className="btn ghost sm" onClick={() => setMonth(today().slice(0, 7))}>오늘</button>
-          </div>
           <ShareCalendar
             month={month}
             schedules={visibleSchedules}
