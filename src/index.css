@@ -455,6 +455,12 @@ a { color: var(--accent); }
 .schedule-day.today .schedule-day-number {
   background: var(--fg); color: var(--surface); border-radius: 50%; font-weight: 700;
 }
+.schedule-day-head { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.schedule-day.holiday .schedule-day-number { color: var(--danger); font-weight: 700; }
+.schedule-day-holiday {
+  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  color: var(--danger); font-size: 10px; font-weight: 600;
+}
 .schedule-day-items { display: flex; flex-direction: column; gap: 2px; }
 .schedule-event {
   width: 100%; min-width: 0; display: flex; align-items: center; gap: 4px;

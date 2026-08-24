@@ -14,6 +14,7 @@ import {
   updateDocById,
   useCollection,
 } from '../lib/db'
+import { HOLIDAYS } from '../lib/holidays'
 import { nowTime, today } from '../lib/markdown'
 import {
   SCHEDULE_KIND_LABEL,
@@ -646,15 +647,19 @@ function MonthView({
           const list = items
             .filter((item) => item.startDate <= date && item.endDate >= date)
             .sort((a, b) => compareSchedules(a, b, taskMap, projectOrder))
+          const holiday = HOLIDAYS[date]
           return (
             <div
-              className={`schedule-day${date.slice(0, 7) !== month ? ' outside' : ''}${date === today() ? ' today' : ''}`}
+              className={`schedule-day${date.slice(0, 7) !== month ? ' outside' : ''}${date === today() ? ' today' : ''}${holiday ? ' holiday' : ''}`}
               key={date}
               onClick={() => onAdd(date)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => onTaskDrop(event, date)}
             >
-              <div className="schedule-day-number">{Number(date.slice(8))}</div>
+              <div className="schedule-day-head">
+                <div className="schedule-day-number">{Number(date.slice(8))}</div>
+                {holiday && <span className="schedule-day-holiday" title={holiday}>{holiday}</span>}
+              </div>
               <div className="schedule-day-items">
                 {list.map((item) => (
                   <button
@@ -701,7 +706,7 @@ function TimelineView({ month, items, taskMap, projectMap, spotlightProject, pro
         <div className="timeline-label">업무</div>
         <div className="timeline-days" style={{ gridTemplateColumns: `repeat(${last}, minmax(24px, 1fr))` }}>
           {Array.from({ length: last }, (_, index) => index + 1).map((day) => (
-            <span className={(new Date(year, value - 1, day).getDay() % 6 === 0) ? 'weekend' : ''} key={day}>
+            <span className={(new Date(year, value - 1, day).getDay() % 6 === 0) || HOLIDAYS[`${month}-${String(day).padStart(2, '0')}`] ? 'weekend' : ''} key={day}>
               {day}
             </span>
           ))}
@@ -724,7 +729,7 @@ function TimelineView({ month, items, taskMap, projectMap, spotlightProject, pro
             </button>
             <div className="timeline-track" style={{ gridTemplateColumns: `repeat(${last}, minmax(24px, 1fr))` }}>
               {Array.from({ length: last }, (_, index) => (
-                <i className={(new Date(year, value - 1, index + 1).getDay() % 6 === 0) ? 'weekend' : ''} key={index} />
+                <i className={(new Date(year, value - 1, index + 1).getDay() % 6 === 0) || HOLIDAYS[`${month}-${String(index + 1).padStart(2, '0')}`] ? 'weekend' : ''} key={index} />
               ))}
               <button
                 className={`timeline-bar ${scheduleTone(item, projectMap)}`}
