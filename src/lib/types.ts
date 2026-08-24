@@ -64,7 +64,7 @@ export interface ProjectCalendar {
   due?: string
   status?: ProjectStatus
   milestones?: Milestone[]
-  /** 프로젝트 메모. 공개 공유에는 내보내지 않는다. */
+  /** 프로젝트 메모. 공유 화면에도 그대로 나간다. */
   notes?: string
   authorUid: string
   authorName: string
@@ -225,13 +225,14 @@ export interface Session {
   updatedAt: number
 }
 
-/** 공개 공유에 담는 프로젝트 요약. 메모처럼 밖에 내보내면 안 되는 필드는 뺀다. */
+/** 공개 공유에 담는 프로젝트 요약. */
 export interface SharedProject {
   name: string
   color: ProjectCalendarColor
   status: ProjectStatus
   due: string
   milestones: Milestone[]
+  notes: string
 }
 
 /** 공개 공유에 담는 일정 요약. 장소는 내보내지 않는다. */

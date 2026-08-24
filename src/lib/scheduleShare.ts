@@ -16,8 +16,8 @@ export function scheduleShareUrl(code: string): string {
 
 /**
  * 발행 시점의 프로젝트·일정 스냅샷을 만든다.
- * 공개 링크로 나가는 자료라 개인 일정(프로젝트 없는 일정)과 장소, 프로젝트 메모는 담지 않는다.
- * 일정·마일스톤 메모는 공유 화면에서 보여주기 위해 담는다.
+ * 공개 링크로 나가는 자료라 개인 일정(프로젝트 없는 일정)과 장소는 담지 않는다.
+ * 일정·마일스톤·프로젝트 메모는 공유 화면에서 보여주기 위해 담는다.
  */
 export function buildShareSnapshot(
   calendarNames: string[],
@@ -33,6 +33,7 @@ export function buildShareSnapshot(
       status: item?.status ?? 'active',
       due: item?.due ?? '',
       milestones: item?.milestones ?? [],
+      notes: item?.notes ?? '',
     } satisfies SharedProject
   })
   const names = new Set(calendarNames)

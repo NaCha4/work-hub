@@ -1055,12 +1055,15 @@ function ProjectOverviewView({ names, projectMap, schedules, onOpenProject }: {
                 </span>
               )}
             </div>
-            <div className="progress-row">
-              <div className="progress-track"><span className="progress-fill" style={{ width: `${percent}%` }} /></div>
-              <span className="progress-label">{percent}%</span>
-            </div>
+            {milestones.length > 0 && (
+              <div className="progress-row">
+                <div className="progress-track"><span className="progress-fill" style={{ width: `${percent}%` }} /></div>
+                <span className="progress-label">{percent}%</span>
+              </div>
+            )}
             <p className="proj-meta">
-              마일스톤 {doneCount}/{milestones.length} 완료 · 남은 일정 {remaining}개 · 전체 일정 {linked.length}개
+              {milestones.length > 0 && `마일스톤 ${doneCount}/${milestones.length} 완료 · `}
+              남은 일정 {remaining}개 · 전체 일정 {linked.length}개
             </p>
             {milestones.length > 0 && (
               <ul className="milestone-list">
@@ -1378,7 +1381,7 @@ function ProjectModal({ draft, editing, onChange, onSave, onClose }: {
           rows={3}
           value={draft.notes ?? ''}
           onChange={(event) => onChange({ ...draft, notes: event.target.value })}
-          placeholder="프로젝트 참고 사항. 공유 링크에는 나가지 않습니다."
+          placeholder="프로젝트 참고 사항. 공유 화면에도 표시됩니다."
         />
       </div>
     </Modal>
@@ -1420,7 +1423,7 @@ function ShareModal({ share, onPublish, onStop, onClose }: {
       <p className="share-desc">
         발행하면 로그인 없이 프로젝트별 일정·납기·마일스톤을 볼 수 있는 링크가 만들어집니다.
         발행 시점의 내용이 담기므로, 일정을 고친 뒤에는 다시 발행해야 반영됩니다.
-        일정·마일스톤 메모는 함께 공개되고, 개인 일정(프로젝트 없는 일정)과 장소·프로젝트 메모는 담기지 않습니다.
+        일정·마일스톤·프로젝트 메모는 함께 공개되고, 개인 일정(프로젝트 없는 일정)과 장소는 담기지 않습니다.
       </p>
       {active && share && (
         <>

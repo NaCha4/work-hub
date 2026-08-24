@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { firebaseConfigured } from '../lib/firebase'
 import { HOLIDAYS } from '../lib/holidays'
-import { dday, formatDate, today, withDow } from '../lib/markdown'
+import { dday, today, withDow } from '../lib/markdown'
 import { fetchScheduleShare } from '../lib/scheduleShare'
 import {
   PROJECT_STATUS_LABEL,
@@ -106,13 +106,6 @@ export default function ScheduleShareView() {
 
   return (
     <div className="share-view share-view-wide">
-      <header className="share-head">
-        <h1>프로젝트 일정</h1>
-        <p className="muted">
-          {share.createdByName} 발행 · {formatDate(share.publishedAt)} 기준
-        </p>
-      </header>
-
       <div className="share-toolbar card">
         <div className="schedule-month-nav">
           <button className="btn ghost sm" onClick={() => shiftMonth(-1)} aria-label="이전 달">
@@ -158,13 +151,17 @@ export default function ScheduleShareView() {
             <section className="card">
               <h3 className="share-side-title">프로젝트 진행</h3>
               {share.projects.map((project) => {
-                const { percent } = progressOf(project)
+                const { total, percent } = progressOf(project)
                 return (
                   <button className="share-side-project" key={project.name} onClick={() => setSelected(project.name)}>
                     <span className={`project-calendar-dot project-${project.color}`} />
                     <span className="name">{project.name}</span>
-                    <span className="mini-track"><span className="mini-fill" style={{ width: `${percent}%` }} /></span>
-                    <span className="pct">{percent}%</span>
+                    {total > 0 && (
+                      <>
+                        <span className="mini-track"><span className="mini-fill" style={{ width: `${percent}%` }} /></span>
+                        <span className="pct">{percent}%</span>
+                      </>
+                    )}
                   </button>
                 )
               })}
@@ -173,8 +170,6 @@ export default function ScheduleShareView() {
           )}
         </aside>
       </div>
-
-      <footer className="share-foot muted">Work Hub 일정 공유 · 발행 시점의 내용입니다.</footer>
     </div>
   )
 }
@@ -201,11 +196,15 @@ function ProjectPanel({ project, schedules }: {
             납기 {withDow(project.due)} · {dday(project.due, t)}
           </p>
         )}
-        <div className="progress-row">
-          <div className="progress-track"><span className="progress-fill" style={{ width: `${percent}%` }} /></div>
-          <span className="progress-label">{percent}%</span>
-        </div>
-        <p className="proj-meta">마일스톤 {done}/{total} 완료</p>
+        {total > 0 && (
+          <>
+            <div className="progress-row">
+              <div className="progress-track"><span className="progress-fill" style={{ width: `${percent}%` }} /></div>
+              <span className="progress-label">{percent}%</span>
+            </div>
+            <p className="proj-meta">마일스톤 {done}/{total} 완료</p>
+          </>
+        )}
         {total > 0 && (
           <ul className="milestone-list">
             {project.milestones.map((milestone) => (
@@ -242,6 +241,13 @@ function ProjectPanel({ project, schedules }: {
           </ul>
         )}
       </section>
+
+      {project.notes?.trim() && (
+        <section className="card">
+          <h3 className="share-side-title">메모</h3>
+          <p className="overview-notes">{project.notes}</p>
+        </section>
+      )}
     </>
   )
 }
