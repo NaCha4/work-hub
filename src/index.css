@@ -968,32 +968,26 @@ a { color: var(--accent); }
   margin-bottom: 12px; padding: 10px 14px;
 }
 .share-toolbar .spacer { flex: 1; }
-/* 프로젝트 전환 — 전 항목이 한 줄에 다 보이고, 넘치면 그 줄 안에서 가로 스크롤 */
-.share-project-switch {
-  display: inline-flex; max-width: 100%; padding: 2px;
-  border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
-  overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch;
-}
-.share-project-switch button {
-  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
-  border: 0; border-radius: 6px; background: transparent;
-  padding: 6px 13px; cursor: pointer; color: var(--muted);
-  font: inherit; font-size: 13px; font-weight: 600;
-}
-.share-project-switch button:hover { color: var(--fg); }
-.share-project-switch button.active { background: var(--fg); color: var(--surface); }
 .share-cal-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 320px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px;
   gap: 12px; align-items: start;
 }
+.share-cal-main { min-width: 0; }
+/* 선택한 프로젝트의 상세는 달력 아래에 카드로 펼친다 */
+.share-detail {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px; align-items: start; margin-top: 12px;
+}
+.share-detail .card + .card { margin-top: 0; }
 @media (max-width: 880px) {
   .share-cal-layout { grid-template-columns: 1fr; }
+  /* 좁은 화면에서는 프로젝트 선택이 달력보다 먼저 보여야 한다 */
+  .share-side { order: -1; position: static; }
 }
-.share-cal-main { min-width: 0; }
 .share-view .schedule-day { cursor: default; }
 .share-view .schedule-day:hover { box-shadow: none; }
 .share-view .schedule-event { cursor: default; }
-.share-side { min-width: 0; }
+.share-side { min-width: 0; position: sticky; top: 12px; }
 .share-side .card + .card { margin-top: 12px; }
 .share-side-title { margin: 0 0 6px; font-size: 14px; }
 .share-side-project {
@@ -1002,6 +996,8 @@ a { color: var(--accent); }
   padding: 8px 2px; cursor: pointer; font: inherit; font-size: 12.5px; text-align: left;
 }
 .share-side-project:hover { background: var(--surface-2); }
+.share-side-project.active { background: var(--accent-soft); border-radius: 7px; }
+.share-side-project.active .name { color: var(--accent); }
 .share-side-project .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .share-side-project .mini-track {
   flex: 0 0 64px; height: 6px; margin-left: auto;

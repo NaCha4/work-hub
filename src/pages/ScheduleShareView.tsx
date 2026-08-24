@@ -96,8 +96,7 @@ export default function ScheduleShareView() {
   }
 
   const selectedProject = share.projects.find((project) => project.name === selected)
-  const visibleProjects = selectedProject ? [selectedProject] : share.projects
-  const visibleSchedules = share.schedules.filter((item) => !selected || item.project === selected)
+  const selectedSchedules = share.schedules.filter((item) => item.project === selected)
 
   function shiftMonth(delta: number) {
     const [year, value] = month.split('-').map(Number)
@@ -117,57 +116,54 @@ export default function ScheduleShareView() {
           </button>
           <button className="btn ghost sm" onClick={() => setMonth(today().slice(0, 7))}>오늘</button>
         </div>
-        <span className="spacer" />
-        <div className="share-project-switch" role="tablist" aria-label="프로젝트 선택">
-          <button className={selected === '' ? 'active' : ''} onClick={() => setSelected('')}>전체</button>
-          {share.projects.map((project) => (
-            <button
-              className={selected === project.name ? 'active' : ''}
-              key={project.name}
-              onClick={() => setSelected(project.name)}
-            >
-              <span className={`project-calendar-dot project-${project.color}`} />
-              {project.name}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="share-cal-layout">
         <div className="share-cal-main">
           <ShareCalendar
             month={month}
-            schedules={visibleSchedules}
-            projects={visibleProjects}
+            schedules={share.schedules}
+            projects={share.projects}
             colorMap={colorMap}
+            selected={selected}
             onSelectProject={setSelected}
           />
+          {selectedProject && (
+            <div className="share-detail">
+              <ProjectPanel project={selectedProject} schedules={selectedSchedules} />
+            </div>
+          )}
         </div>
 
         <aside className="share-side">
-          {selectedProject ? (
-            <ProjectPanel project={selectedProject} schedules={visibleSchedules} />
-          ) : (
-            <section className="card">
-              <h3 className="share-side-title">프로젝트 진행</h3>
-              {share.projects.map((project) => {
-                const { total, percent } = progressOf(project)
-                return (
-                  <button className="share-side-project" key={project.name} onClick={() => setSelected(project.name)}>
-                    <span className={`project-calendar-dot project-${project.color}`} />
-                    <span className="name">{project.name}</span>
-                    {total > 0 && (
-                      <>
-                        <span className="mini-track"><span className="mini-fill" style={{ width: `${percent}%` }} /></span>
-                        <span className="pct">{percent}%</span>
-                      </>
-                    )}
-                  </button>
-                )
-              })}
-              <p className="field-hint">프로젝트를 누르면 일정과 마일스톤 진행 과정을 볼 수 있습니다.</p>
-            </section>
-          )}
+          <section className="card">
+            <h3 className="share-side-title">프로젝트</h3>
+            <button
+              className={`share-side-project${selected === '' ? ' active' : ''}`}
+              onClick={() => setSelected('')}
+            >
+              <span className="name">전체</span>
+            </button>
+            {share.projects.map((project) => {
+              const { total, percent } = progressOf(project)
+              return (
+                <button
+                  className={`share-side-project${selected === project.name ? ' active' : ''}`}
+                  key={project.name}
+                  onClick={() => setSelected(project.name)}
+                >
+                  <span className={`project-calendar-dot project-${project.color}`} />
+                  <span className="name">{project.name}</span>
+                  {total > 0 && (
+                    <>
+                      <span className="mini-track"><span className="mini-fill" style={{ width: `${percent}%` }} /></span>
+                      <span className="pct">{percent}%</span>
+                    </>
+                  )}
+                </button>
+              )
+            })}
+          </section>
         </aside>
       </div>
     </div>
@@ -261,11 +257,12 @@ interface ShareMarker {
 }
 
 /** 읽기 전용 월간 달력 — 일정 화면의 주 단위 레인 배치를 그대로 따른다. */
-function ShareCalendar({ month, schedules, projects, colorMap, onSelectProject }: {
+function ShareCalendar({ month, schedules, projects, colorMap, selected, onSelectProject }: {
   month: string
   schedules: SharedSchedule[]
   projects: SharedProject[]
   colorMap: Map<string, ProjectCalendarColor>
+  selected: string
   onSelectProject: (name: string) => void
 }) {
   const [year, value] = month.split('-').map(Number)
@@ -370,7 +367,7 @@ function ShareCalendar({ month, schedules, projects, colorMap, onSelectProject }
               <div className="schedule-week-bars">
                 {markerBars.map((bar) => (
                   <button
-                    className={`schedule-marker project-${bar.marker.color}${bar.marker.done ? ' done' : ''}`}
+                    className={`schedule-marker project-${bar.marker.color}${bar.marker.done ? ' done' : ''}${selected && bar.marker.project !== selected ? ' dimmed' : ''}`}
                     key={bar.key}
                     style={{ gridColumn: `${bar.col + 1} / span 1`, gridRow: bar.lane + 1 }}
                     title={`${bar.marker.project} · ${bar.marker.label}${bar.marker.notes?.trim() ? `\n${bar.marker.notes}` : ''}`}
@@ -383,7 +380,7 @@ function ShareCalendar({ month, schedules, projects, colorMap, onSelectProject }
                   const color = colorMap.get(bar.item.project)
                   return (
                     <div
-                      className={`schedule-event ${color ? `project-${color}` : `kind-${bar.item.kind}`}${bar.continuesLeft ? ' continues-left' : ''}${bar.continuesRight ? ' continues-right' : ''}`}
+                      className={`schedule-event ${color ? `project-${color}` : `kind-${bar.item.kind}`}${bar.continuesLeft ? ' continues-left' : ''}${bar.continuesRight ? ' continues-right' : ''}${selected && bar.item.project !== selected ? ' dimmed' : ''}`}
                       key={bar.key}
                       style={{ gridColumn: `${bar.col + 1} / span ${bar.span}`, gridRow: bar.lane + 1 }}
                       title={`${bar.item.title} · ${bar.item.startDate} ~ ${bar.item.endDate}${bar.item.notes?.trim() ? `\n${bar.item.notes}` : ''}`}
